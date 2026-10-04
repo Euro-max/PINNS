@@ -3,3 +3,9 @@ __pycache__/
 *.pyc
 .pytest_cache/
 results/logs/
+
+poster.pptx
+scripts/update_poster_pptx.py
+scripts/make_poster_assets.py
+scripts/make_paper_tables.py
+scripts/build_poster.py
