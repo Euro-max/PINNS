@@ -1,0 +1,23 @@
+{
+  "model": {
+    "depth": 4,
+    "width": 128,
+    "activation": "tanh",
+    "hard_ic": true,
+    "residual": "none",
+    "dropout": 0.1,
+    "layernorm": false
+  },
+  "S_x": [
+    30.0,
+    1.5,
+    0.6,
+    0.5
+  ],
+  "S_u": [
+    6000.0,
+    0.3
+  ],
+  "T": 0.1,
+  "dtype": "float64"
+}
