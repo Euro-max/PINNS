@@ -205,7 +205,7 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
 1. **Generalise the state dimension.**  `n_s` in config; no behaviour change.  *Accept:* all existing tests
    pass; retraining `pinc_v2_s0` reproduces its validation loss within 1 %.
 2. **HF plant (NumPy + TF).**  *Accept:* tyre forces reduce to `C_alpha alpha` / `C_kappa kappa` at small slip
-   and saturate at `mu Fz`; M0 linearises to today's single-track model (lateral eigenvalues within 2 %);
+   and saturate at `mu Fz`; M0 linearises to today's single-track model (with the fast wheel-speed modes eliminated, every non-zero entry of the (v_y, r) matrix within 1 %, see §7a);
    static loads sum to `m g` and load transfer has the right sign; free rolling gives zero slip;
    RK4 order ~4 at the chosen `dt`; NumPy and TF agree to 1e-6 over 1 s; stability of the chosen
    `dt_plant` and NMPC substep demonstrated at 5 m/s.
@@ -222,6 +222,29 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
    imperfect-prior study are kept separate until then.  If the imperfect-prior study shows a clearer
    contribution for PINC, the paper is framed around both (matched physics as the zero-mismatch end of
    H3); otherwise the two are reported separately.
+
+## 7a. Phase 2 implementation notes (done 2026-10-05)
+
+- `pinc/tyre_mf.py`: MF 6.1 pure + combined slip, written once for NumPy and TensorFlow.  Left-hand
+  tyres are the mirror image of the measured (right-hand) tyre, so the built-in ply-steer / conicity
+  offsets (about 80 N at zero slip) cancel across an axle, as on a real car.
+- `pinc/plant_hf.py`: the 12-state plant of §2.  Loaded rolling radius R_w = 0.3168 m (unloaded radius
+  minus static deflection).  The drive/brake torque split switches smoothly (tanh over about ±50 N of
+  actuator force) so the dynamics stay differentiable for the MPC and the physics residual.
+- **Step sizes (measured):** RK4 converges at order ~4; at 5 m/s a 2 ms step is at the stability edge.
+  `DT_PLANT = 0.5 ms` (error < 1e-9 over 0.5 s at 5–20 m/s), `DT_PRED = 1 ms` for NMPC-HF (100 substeps per
+  control period, against 10 for the single-track NMPC).  NumPy and TF agree to 2e-16.
+- **Acceptance criterion changed (not loosened):** the plan asked for lateral eigenvalues within 2 %.  The
+  single-track pair is nearly degenerate (−3.92, −3.33 at 20 m/s), and the HF model has a small (v_y, r)
+  coupling from track width and tyre offsets (0.007–0.03) where the single-track entry is exactly zero;
+  that alone turns the pair complex (−3.6 ± 0.26j) although the dynamics match.  Freezing the wheel speeds
+  is also wrong: frozen wheels add a spurious yaw damping of 4 y² C_kappa /(vx Iz) ≈ 3.9 1/s.  The test
+  therefore eliminates the wheel-speed modes and compares the 2×2 matrix entry by entry: within 0.7 % at
+  10–30 m/s, driving or coasting (`tests/test_plant_hf.py`, tolerance 1 %).
+- **Open:** cross-check of the MF implementation against MathWorks' own (a Simulink harness on the
+  Vehicle Dynamics Blockset tyre block).  The internal checks pass (small-slip stiffness, saturation,
+  combined slip, sign convention); an independent reference would catch a wrong coefficient in a
+  rarely active term.
 
 ## 8. Risks
 
