@@ -19,9 +19,13 @@ def _rng(seed):
     return np.random.default_rng(seed)
 
 
-def sample_box(n: int, box, rng, cfg: Config | None = None) -> np.ndarray:
-    """Initial network states for `box` (the system decides how; bicycle: uniform)."""
-    return get_system(cfg or "bicycle").sample_s0(n, box, rng)
+def sample_box(n: int, box, rng, cfg: Config | None = None, kind: str = "data", seed: int | None = None) -> np.ndarray:
+    """Initial network states for `box` (the system decides how; bicycle: uniform).  `kind` / `seed` let a
+    system with expensive state generation cache by split ('data', 'ic') or draw from a pool ('colloc')."""
+    sysm = get_system(cfg or "bicycle")
+    if getattr(sysm, "cached_states", False):
+        return sysm.sample_s0(n, box, rng, kind=kind, seed=seed)
+    return sysm.sample_s0(n, box, rng)
 
 
 def sample_inputs(n: int, cfg: Config, rng) -> np.ndarray:
@@ -38,7 +42,7 @@ def sample_trajectories(n: int, seed: int, cfg: Config, box=None, dt: float | No
     sysm = get_system(cfg)
     rng = _rng(seed)
     n_steps = int(round(cfg.T/dt))
-    s0 = sample_box(n, box, rng, cfg)
+    s0 = sample_box(n, box, rng, cfg, kind="data", seed=seed)
     u = sample_inputs(n, cfg, rng)
     k = rng.integers(1, n_steps + 1, size=n)          # t = k*dt in (0, T]
     t = k*dt
@@ -58,7 +62,7 @@ def sample_ic(n: int, seed: int, cfg: Config, box=None) -> dict:
     """Points at t = 0 whose target is s0 itself (initial-condition loss)."""
     box = box or cfg.box_train
     rng = _rng(seed)
-    s0 = sample_box(n, box, rng, cfg)
+    s0 = sample_box(n, box, rng, cfg, kind="ic", seed=seed)
     u = sample_inputs(n, cfg, rng)
     return dict(t=np.zeros(n), s0=s0, u=u, s=s0.copy())
 
@@ -67,10 +71,13 @@ def sample_collocation(n: int, seed: int, cfg: Config, box=None) -> dict:
     """Random (t, s0, u) with t uniform in (0, T]; no targets."""
     box = box or cfg.box_train
     rng = _rng(seed)
-    s0 = sample_box(n, box, rng, cfg)
+    s0 = sample_box(n, box, rng, cfg, kind="colloc", seed=seed)
     u = sample_inputs(n, cfg, rng)
     t = rng.uniform(0.0, cfg.T, size=n)
     t = np.where(t == 0.0, cfg.T, t)
+    n_log = int(round(getattr(cfg.train, "colloc_log_frac", 0.0)*n))
+    if n_log > 0:                                     # resolve fast transients near t = 0 (e.g. wheel slip)
+        t[:n_log] = cfg.T*10.0**rng.uniform(-3.0, 0.0, size=n_log)
     return dict(t=t, s0=s0, u=u)
 
 

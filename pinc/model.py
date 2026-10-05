@@ -54,7 +54,9 @@ class PINCNet(tf.keras.Model):
         if getattr(mcfg, "increment_scaling", False):
             if self._S_f is None:
                 raise ValueError("increment_scaling needs S_f")
-            inc = self._S_f*self._T/self._S_x
+            # O(1) output per channel; capped at 1 for fast states whose change over T is bounded by S_x
+            # (e.g. wheel slip, which settles within milliseconds).  Bicycle values are all < 1: unchanged.
+            inc = np.minimum(self._S_f*self._T/self._S_x, 1.0)
         self.inc_t = tf.constant(inc, dtype=dtype)
         self.build((None, 1 + self.n_s + self.n_u))
 

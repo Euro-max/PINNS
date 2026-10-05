@@ -115,6 +115,7 @@ class TrainCfg:
     val_every: int = 1
     log_every: int = 10
     select_on: str = "total"          # validation quantity for model selection: total | data
+    colloc_log_frac: float = 0.0      # fraction of collocation times drawn log-uniformly in [1e-3 T, T] (fast transients near t = 0)
 
 
 @dataclass

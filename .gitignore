@@ -11,3 +11,4 @@ scripts/make_paper_tables.py
 scripts/build_poster.py
 LATEX/
 data/tyre/
+results/cache/
