@@ -1,6 +1,6 @@
 """
 Closed-loop simulator.  The plant state changes ONLY through
-`plant.simulate` (ground rule 1).  Nothing here reads the reference except
+the system's `plant_simulate` (ground rule 1; `pinc/system.py`).  Nothing here reads the reference except
 to hand it to the controller and to compute the logged error AFTER the step
 against the reference at the new time (fixes D7, D18).
 """
@@ -11,26 +11,29 @@ import numpy as np
 from . import plant
 from .config import Config
 from .refs import Reference
+from .system import get_system
 
 
 def simulate(controller, plant_params: dict, ref: Reference, x0, duration: float, noise_sigma, seed: int,
              cfg: Config, tyre: str = "linear", disturbance=None, verbose: bool = False) -> dict:
-    """Run the loop: measure -> controller -> ZOH input -> plant.simulate.
+    """Run the loop: measure -> controller -> ZOH input -> plant (system.plant_simulate).
 
     controller(t, x_meas, ref) -> (u (2,), info dict)
     disturbance(t) -> additive plant input (2,), unknown to the controller (may be None)
     """
     T, dt = cfg.T, cfg.sim.dt_plant
+    sysm = get_system(cfg)
     n = int(round(duration/T))
     rng = np.random.default_rng(seed)
     noise_sigma = np.asarray(noise_sigma, float)
     u_lo, u_hi = np.asarray(cfg.u_min), np.asarray(cfg.u_max)
 
     t = T*np.arange(n + 1)
-    x = np.zeros((n + 1, 6))
-    x_meas = np.zeros((n, 6))
-    u = np.zeros((n, 2))
-    u_plant = np.zeros((n, 2))
+    n_x, n_u = len(np.asarray(x0)), len(cfg.u_min)
+    x = np.zeros((n + 1, n_x))
+    x_meas = np.zeros((n, n_x))
+    u = np.zeros((n, n_u))
+    u_plant = np.zeros((n, n_u))
     z_ref = ref(t)
     solve_time = np.zeros(n)
     nit = np.zeros(n, dtype=int)
@@ -40,19 +43,19 @@ def simulate(controller, plant_params: dict, ref: Reference, x0, duration: float
     if hasattr(controller, "reset"):
         controller.reset()
     for k in range(n):
-        x_meas[k] = x[k] + noise_sigma*rng.standard_normal(6)          # sensor model
+        x_meas[k] = x[k] + noise_sigma*rng.standard_normal(n_x)        # sensor model
         u_k, info = controller(t[k], x_meas[k], ref)
         u_k = np.clip(np.asarray(u_k, float), u_lo, u_hi)              # actuator saturation (physical limits only)
         u[k] = u_k
         u_p = u_k + (np.asarray(disturbance(t[k]), float) if disturbance is not None else 0.0)
         u_plant[k] = u_p
-        x[k + 1] = plant.check_finite(plant.simulate(x[k], u_p, T, dt, plant_params, tyre), "plant state")
+        x[k + 1] = plant.check_finite(sysm.plant_simulate(x[k], u_p, T, dt, plant_params, tyre), "plant state")
         solve_time[k] = info.get("solve_time", np.nan)
         nit[k] = info.get("nit", 0)
         success[k] = info.get("success", True)
         if verbose and k % 10 == 0:
             print(f"  t={t[k]:5.2f} vx={x[k+1,0]:6.2f} psi={x[k+1,3]:+.3f} Y={x[k+1,5]:+.2f} u={u_k} {info.get('solve_time', 0)*1e3:.0f} ms")
-    err = x - z_ref                                                    # error at t_{k+1} vs ref(t_{k+1})
+    err = sysm.track_full(x) - z_ref                                   # error at t_{k+1} vs ref(t_{k+1})
     return dict(t=t, x=x, x_meas=x_meas, u=u, u_plant=u_plant, ref=z_ref, err=err,
                 solve_time=solve_time, nit=nit, success=success, seed=seed, T=T)
 

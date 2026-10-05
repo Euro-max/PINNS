@@ -166,6 +166,7 @@ class RefsCfg:
 @dataclass
 class Config:
     T: float = 0.1                     # control period [s]
+    system: str = "bicycle"            # vehicle system (pinc/system.py)
     dtype: str = "float64"
     actuator_lag: bool = False         # v1: zero-order hold on commands
     vehicle: VehicleCfg = field(default_factory=VehicleCfg)
@@ -219,8 +220,11 @@ class Config:
 
     def validate(self):
         assert self.T > 0 and self.mpc.N >= 1
-        assert len(self.scales.S_x) == 4 and len(self.scales.S_u) == 2
-        assert len(self.scales.S_f) == 4
+        from .system import get_system
+        sysm = get_system(self.system)
+        assert len(self.scales.S_x) == len(self.scales.S_f) == sysm.n_s, "S_x / S_f must match the system state"
+        assert len(self.scales.S_u) == len(self.u_min) == len(self.u_max) == sysm.n_u, "S_u / u bounds must match the system input"
+        assert len(self.loss.residual_mask) == sysm.n_s
         assert np.all(np.asarray(self.u_min) < np.asarray(self.u_max))
         assert abs(round(self.T/self.mpc.dt_pred)*self.mpc.dt_pred - self.T) < 1e-9
         assert abs(round(self.T/self.sim.dt_plant)*self.sim.dt_plant - self.T) < 1e-9

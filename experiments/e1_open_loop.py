@@ -21,7 +21,8 @@ import tensorflow as tf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import (COLORS, LABELS, base_parser, ci_str, finish, load_models, md_table,  # noqa: E402
                                 savefig, start, write_text, plt)
-from pinc import plant, plant_tf  # noqa: E402
+from pinc import plant_tf  # noqa: E402
+from pinc.system import get_system  # noqa: E402
 from pinc.data import sample_box  # noqa: E402
 from pinc.metrics import bootstrap_ci  # noqa: E402
 from pinc.mpc import PINCPredictor, RK4Predictor  # noqa: E402
@@ -53,18 +54,19 @@ def truth_rollout(s0, u, cfg):
     """RK4 truth (dt = sim.dt_plant): returns states after each step (B, n_steps, 4)
     and the first-step states at the fractional times (B, len(FRACS), 4)."""
     B, n_steps = u.shape[:2]
-    x = np.concatenate([s0, np.zeros((B, 2))], axis=1)
+    sysm = get_system(cfg)
+    x = sysm.to_full(s0)
     dt = cfg.sim.dt_plant
     n_sub = int(round(cfg.T/dt))
-    out = np.zeros((B, n_steps, 4))
-    frac = np.zeros((B, len(FRACS), 4))
+    out = np.zeros((B, n_steps, sysm.n_s))
+    frac = np.zeros((B, len(FRACS), sysm.n_s))
     frac_steps = {int(round(f*n_sub)): i for i, f in enumerate(FRACS)}
     for k in range(n_steps):
         for j in range(1, n_sub + 1):
-            x = plant.rk4_step(x, u[:, k], dt, cfg.params, cfg.sim.tyre)
+            x = sysm.rk4_step(x, u[:, k], dt, cfg.params, cfg.sim.tyre)
             if k == 0 and j in frac_steps:
-                frac[:, frac_steps[j]] = x[:, :4]
-        out[:, k] = x[:, :4]
+                frac[:, frac_steps[j]] = sysm.from_full(x)
+        out[:, k] = sysm.from_full(x)
     return out, frac
 
 
@@ -140,14 +142,14 @@ def run_region(name, s0_ic, cfg, models, rng, n_seq, n_steps, summary, run_dir):
         for i, f in enumerate(FRACS):
             e2 = ((preds_frac[arm][:, i] - truth_frac[:, i])/S)**2           # (B, 4)
             per_ic = np.stack([np.sqrt(np.mean(e2[ic_index == j], axis=0)) for j in range(n_ic)])  # (n_ic, 4)
-            res["onestep"][arm][str(f)] = {STATES[s]: bootstrap_ci(per_ic[:, s]) for s in range(4)}
+            res["onestep"][arm][str(f)] = {STATES[s]: bootstrap_ci(per_ic[:, s]) for s in range(len(STATES))}
             res["onestep"][arm][str(f)]["all"] = bootstrap_ci(np.sqrt(np.mean(per_ic**2, axis=1)))
         e2 = ((preds_chain[arm] - truth)/S)**2                                # (B, n_steps, 4)
         finite = np.isfinite(e2).all(axis=(1, 2))
         curve = {}
         for h in range(n_steps):
             per_ic = np.stack([np.sqrt(np.nanmean(e2[(ic_index == j) & finite, h], axis=0)) for j in range(n_ic)])
-            curve[h + 1] = {STATES[s]: bootstrap_ci(per_ic[:, s]) for s in range(4)}
+            curve[h + 1] = {STATES[s]: bootstrap_ci(per_ic[:, s]) for s in range(len(STATES))}
             curve[h + 1]["all"] = bootstrap_ci(np.sqrt(np.mean(per_ic**2, axis=1)))
         res["chain"][arm] = dict(curve=curve, n_nonfinite=int((~finite).sum()))
     summary[name] = res
@@ -164,8 +166,8 @@ def main(argv=None):
     n_ic, n_seq, n_steps = (40, 5, 50) if a.quick else (200, 20, 50)
     rng = np.random.default_rng(1000 + a.seed)
     summary = dict(quick=a.quick, models=dict(pinc=a.pinc_model, blackbox=a.blackbox_model))
-    regions = dict(in_box=sample_box(n_ic, cfg.box_train, np.random.default_rng(cfg.seeds.test + 500)),
-                   extrap=sample_box(n_ic, cfg.box_extrap, np.random.default_rng(cfg.seeds.test_extrap + 500)))
+    regions = dict(in_box=sample_box(n_ic, cfg.box_train, np.random.default_rng(cfg.seeds.test + 500), cfg),
+                   extrap=sample_box(n_ic, cfg.box_extrap, np.random.default_rng(cfg.seeds.test_extrap + 500), cfg))
     for name, s0 in regions.items():
         print(f"  region {name}: {n_ic} ICs x {n_seq} sequences x {n_steps} steps")
         run_region(name, s0, cfg, models, rng, n_seq, n_steps, summary, run_dir)

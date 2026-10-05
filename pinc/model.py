@@ -1,6 +1,7 @@
 """
-PINCNet: maps scaled inputs z = [t/T, s0/S_x, u/S_u] (7-D) to the scaled
-state s(t)/S_x (4-D).  No clipping anywhere (fixes D14).
+PINCNet: maps scaled inputs z = [t/T, s0/S_x, u/S_u] (1 + n_s + n_u) to the
+scaled state s(t)/S_x (n_s); n_s = len(S_x), n_u = len(S_u) (4 and 2 for the
+bicycle system).  No clipping anywhere (fixes D14).
 
 Hard initial condition (config `model.hard_ic`, default True):
     s_hat(t) = s0_hat + (t/T) * NN(t, s0, u)
@@ -27,6 +28,7 @@ class PINCNet(tf.keras.Model):
         self._S_u = np.asarray(S_u, dtype=float)
         self._T = float(T)
         self._dtype_str = dtype
+        self.n_s, self.n_u = self._S_x.size, self._S_u.size
         init = tf.keras.initializers.GlorotUniform(seed=0)
         res = mcfg.residual
         if isinstance(res, bool):
@@ -43,21 +45,21 @@ class PINCNet(tf.keras.Model):
                 self.hidden.append(tf.keras.layers.Dense(mcfg.width, activation=mcfg.activation, kernel_initializer=init, dtype=dtype, name=f"h{i}"))
         self.norms = [tf.keras.layers.LayerNormalization(dtype=dtype, name=f"ln{i}") for i in range(mcfg.depth)] if mcfg.layernorm else None
         self.drop = tf.keras.layers.Dropout(float(mcfg.dropout), seed=0, dtype=dtype) if mcfg.dropout > 0 else None
-        self.out = tf.keras.layers.Dense(4, activation=None, kernel_initializer=init, dtype=dtype, name="out")
+        self.out = tf.keras.layers.Dense(self.n_s, activation=None, kernel_initializer=init, dtype=dtype, name="out")
         self.hard_ic = bool(mcfg.hard_ic)
         self.S_x_t = tf.constant(self._S_x, dtype=dtype)
         self.S_u_t = tf.constant(self._S_u, dtype=dtype)
         self.T_t = tf.constant(self._T, dtype=dtype)
-        inc = np.ones(4)
+        inc = np.ones(self.n_s)
         if getattr(mcfg, "increment_scaling", False):
             if self._S_f is None:
                 raise ValueError("increment_scaling needs S_f")
             inc = self._S_f*self._T/self._S_x
         self.inc_t = tf.constant(inc, dtype=dtype)
-        self.build((None, 7))
+        self.build((None, 1 + self.n_s + self.n_u))
 
     def build(self, input_shape):
-        h = tf.keras.Input(shape=(7,), dtype=self._dtype_str)
+        h = tf.keras.Input(shape=(1 + self.n_s + self.n_u,), dtype=self._dtype_str)
         _ = self.call(h)
         super().build(input_shape)
 
@@ -79,7 +81,7 @@ class PINCNet(tf.keras.Model):
                 h = self.drop(h, training=training)
         nn = self.out(h)
         if self.hard_ic:
-            return z[:, 1:5] + z[:, 0:1]*nn*self.inc_t
+            return z[:, 1:1 + self.n_s] + z[:, 0:1]*nn*self.inc_t
         return nn
 
     # ---- unit helpers ------------------------------------------------

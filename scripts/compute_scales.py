@@ -19,7 +19,7 @@ a = ap.parse_args()
 
 cfg = load_config()
 rng = np.random.default_rng(12345)
-s0 = sample_box(a.n, cfg.box_train, rng)
+s0 = sample_box(a.n, cfg.box_train, rng, cfg)
 u = sample_inputs(a.n, cfg, rng)
 x = np.concatenate([s0, np.zeros((a.n, 2))], axis=1)
 F = plant.f(x, u, cfg.params)[:, :4]

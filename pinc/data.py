@@ -12,19 +12,21 @@ import numpy as np
 
 from . import plant
 from .config import Config
+from .system import get_system
 
 
 def _rng(seed):
     return np.random.default_rng(seed)
 
 
-def sample_box(n: int, box, rng) -> np.ndarray:
-    lo, hi = box.lo(), box.hi()
-    return rng.uniform(lo, hi, size=(n, 4))
+def sample_box(n: int, box, rng, cfg: Config | None = None) -> np.ndarray:
+    """Initial network states for `box` (the system decides how; bicycle: uniform)."""
+    return get_system(cfg or "bicycle").sample_s0(n, box, rng)
 
 
 def sample_inputs(n: int, cfg: Config, rng) -> np.ndarray:
-    return rng.uniform(np.asarray(cfg.u_min), np.asarray(cfg.u_max), size=(n, 2))
+    lo, hi = np.asarray(cfg.u_min), np.asarray(cfg.u_max)
+    return rng.uniform(lo, hi, size=(n, lo.size))
 
 
 def sample_trajectories(n: int, seed: int, cfg: Config, box=None, dt: float | None = None) -> dict:
@@ -33,19 +35,20 @@ def sample_trajectories(n: int, seed: int, cfg: Config, box=None, dt: float | No
     targets s(t).  Returns dict(t, s0, u, s), all NumPy float64."""
     box = box or cfg.box_train
     dt = dt or cfg.sim.dt_plant
+    sysm = get_system(cfg)
     rng = _rng(seed)
     n_steps = int(round(cfg.T/dt))
-    s0 = sample_box(n, box, rng)
+    s0 = sample_box(n, box, rng, cfg)
     u = sample_inputs(n, cfg, rng)
     k = rng.integers(1, n_steps + 1, size=n)          # t = k*dt in (0, T]
     t = k*dt
-    x = np.concatenate([s0, np.zeros((n, 2))], axis=1)
-    target = np.full((n, 4), np.nan)
+    x = sysm.to_full(s0)
+    target = np.full((n, sysm.n_s), np.nan)
     for step in range(1, n_steps + 1):
-        x = plant.rk4_step(x, u, dt, cfg.params, cfg.sim.tyre)
+        x = sysm.rk4_step(x, u, dt, cfg.params, cfg.sim.tyre)
         sel = k == step
         if np.any(sel):
-            target[sel] = x[sel, :4]
+            target[sel] = sysm.from_full(x[sel])
     plant.check_finite(target, "trajectory targets")
     assert not np.any(np.isnan(target))
     return dict(t=t.astype(float), s0=s0, u=u, s=target)
@@ -55,7 +58,7 @@ def sample_ic(n: int, seed: int, cfg: Config, box=None) -> dict:
     """Points at t = 0 whose target is s0 itself (initial-condition loss)."""
     box = box or cfg.box_train
     rng = _rng(seed)
-    s0 = sample_box(n, box, rng)
+    s0 = sample_box(n, box, rng, cfg)
     u = sample_inputs(n, cfg, rng)
     return dict(t=np.zeros(n), s0=s0, u=u, s=s0.copy())
 
@@ -64,7 +67,7 @@ def sample_collocation(n: int, seed: int, cfg: Config, box=None) -> dict:
     """Random (t, s0, u) with t uniform in (0, T]; no targets."""
     box = box or cfg.box_train
     rng = _rng(seed)
-    s0 = sample_box(n, box, rng)
+    s0 = sample_box(n, box, rng, cfg)
     u = sample_inputs(n, cfg, rng)
     t = rng.uniform(0.0, cfg.T, size=n)
     t = np.where(t == 0.0, cfg.T, t)
@@ -72,7 +75,7 @@ def sample_collocation(n: int, seed: int, cfg: Config, box=None) -> dict:
 
 
 def scale_inputs(t, s0, u, cfg: Config) -> np.ndarray:
-    """Network input z = [t/T, s0/S_x, u/S_u], shape (n, 7)."""
+    """Network input z = [t/T, s0/S_x, u/S_u], shape (n, 1 + n_s + n_u)."""
     t = np.asarray(t, dtype=float).reshape(-1, 1)
     return np.concatenate([t/cfg.T, np.asarray(s0)/cfg.S_x, np.asarray(u)/cfg.S_u], axis=1)
 

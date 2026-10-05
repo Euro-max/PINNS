@@ -19,7 +19,7 @@ import tensorflow as tf
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, savefig, start, write_text, plt  # noqa: E402
 from experiments.e1_open_loop import control_sequences, truth_rollout  # noqa: E402
-from pinc import plant  # noqa: E402
+from pinc.system import get_system  # noqa: E402
 from pinc.config import RESULTS_DIR  # noqa: E402
 from pinc.data import sample_box, sample_collocation, sample_trajectories, scale_inputs  # noqa: E402
 from pinc.loss import forward_and_time_derivative, physics_residual  # noqa: E402
@@ -57,13 +57,13 @@ def main(argv=None):
     z_c = tf.constant(scale_inputs(c["t"], c["s0"], c["u"], cfg))
     d = sample_trajectories(n_c, cfg.seeds.test + 901, cfg)
     z_d = tf.constant(scale_inputs(d["t"], d["s0"], d["u"], cfg))
-    x_true = np.concatenate([d["s"], np.zeros((n_c, 2))], axis=1)
-    f_true = plant.f(x_true, d["u"], cfg.params)[:, :4]
+    sysm = get_system(cfg)
+    f_true = sysm.from_full(sysm.f_full(sysm.to_full(d["s"]), d["u"], cfg.params))
 
     rng = np.random.default_rng(4242)
     regions = {}
     for reg, box, seed in (("in_domain", cfg.box_train, cfg.seeds.test + 902), ("extrap", cfg.box_extrap, cfg.seeds.test_extrap + 902)):
-        s0 = sample_box(n_ic, box, np.random.default_rng(seed))
+        s0 = sample_box(n_ic, box, np.random.default_rng(seed), cfg)
         u = control_sequences(n_seq, max(HORIZONS), cfg, rng, s0[:, 0]).reshape(-1, max(HORIZONS), 2)
         s0r = np.repeat(s0, n_seq, axis=0)
         truth, _ = truth_rollout(s0r, u, cfg)

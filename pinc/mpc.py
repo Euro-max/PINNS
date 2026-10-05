@@ -20,13 +20,13 @@ import numpy as np
 import tensorflow as tf
 from scipy.optimize import minimize
 
-from . import plant_tf
 from .config import Config
+from .system import get_system
 
 
 # ---------------------------------------------------------------------------
 class Predictor:
-    """Maps (s0 (4,), u (N, 2) physical) -> s (N, 4) physical, differentiable."""
+    """Maps (s0 (n_s,), u (N, n_u) physical) -> s (N, n_s) physical, differentiable."""
     name = "base"
     n_extra = 0
 
@@ -53,7 +53,7 @@ class PINCPredictor(Predictor):
         return self.model(z)*self.S_x
 
     def rollout(self, s0, u, extra=()):
-        s = tf.reshape(s0, (1, 4))
+        s = tf.reshape(s0, (1, -1))
         out = []
         for k in range(u.shape[0]):
             s = self.step(s, u[k:k + 1])
@@ -61,7 +61,7 @@ class PINCPredictor(Predictor):
         return tf.concat(out, axis=0)
 
     def rollout_batch(self, s0, u):
-        """Batched chained prediction: s0 (B,4), u (B,N,2) -> (B,N,4)."""
+        """Batched chained prediction: s0 (B, n_s), u (B, N, n_u) -> (B, N, n_s)."""
         s = s0
         out = []
         for k in range(u.shape[1]):
@@ -79,6 +79,7 @@ class RK4Predictor(Predictor):
         self.params = params or cfg.params           # NOMINAL by construction
         self.dt, self.T = cfg.mpc.dt_pred, cfg.T
         self.tyre = "linear"
+        self.sys = get_system(cfg)
 
     def step(self, s, u):
         """One control period of RK4 substeps as a tf.while_loop (keeps the
@@ -87,12 +88,12 @@ class RK4Predictor(Predictor):
         p, dt, tyre = self.params, self.dt, self.tyre
 
         def body(i, s):
-            return i + 1, plant_tf.rk4_step_tf(s, u, dt, p, tyre)
+            return i + 1, self.sys.rk4_step_s_tf(s, u, dt, p, tyre)
         _, s = tf.while_loop(lambda i, s: i < n, body, (tf.constant(0), s), maximum_iterations=n)
         return s
 
     def rollout(self, s0, u, extra=()):
-        s = tf.reshape(s0, (1, 4))
+        s = tf.reshape(s0, (1, -1))
         out = []
         for k in range(u.shape[0]):
             s = self.step(s, u[k:k + 1])
@@ -121,12 +122,12 @@ class LinearPredictor(Predictor):
 
         @tf.function
         def _lin(s0, u_nom):
-            s_nom = [tf.reshape(s0, (1, 4))]
+            s_nom = [tf.reshape(s0, (1, -1))]
             s = s_nom[0]
             for k in range(u_nom.shape[0] - 1):
                 s = self.base.step(s, u_nom[k:k + 1])
                 s_nom.append(s)
-            s_nom = tf.concat(s_nom, axis=0)                 # (N, 4) states at which each step is linearised
+            s_nom = tf.concat(s_nom, axis=0)                 # (N, n_s) states at which each step is linearised
             with tf.GradientTape(persistent=True) as tape:
                 tape.watch(s_nom)
                 tape.watch(u_nom)
@@ -144,8 +145,9 @@ class LinearPredictor(Predictor):
 
     def rollout(self, s0, u, extra):
         s_nom, u_nom, s_next, AB = extra
-        A, B = AB[:, :, :4], AB[:, :, 4:]
-        s = tf.reshape(s0, (1, 4))
+        n_s = s_nom.shape[1]
+        A, B = AB[:, :, :n_s], AB[:, :, n_s:]
+        s = tf.reshape(s0, (1, -1))
         out = []
         for k in range(u.shape[0]):
             ds = s - s_nom[k:k + 1]
@@ -156,10 +158,12 @@ class LinearPredictor(Predictor):
 
 
 # ---------------------------------------------------------------------------
-def integrate_xy(XY0, s_prev, s, T):
+def integrate_xy(XY0, s_prev, s, T, sysm=None):
     """Trapezoidal integration of X, Y from the predicted s sequence."""
+    sysm = sysm or get_system("bicycle")
+
     def g(s):
-        vx, vy, psi = s[:, 0], s[:, 1], s[:, 3]
+        vx, vy, psi = sysm.planar_velocity(s)
         return tf.stack([vx*tf.cos(psi) - vy*tf.sin(psi), vx*tf.sin(psi) + vy*tf.cos(psi)], axis=1)
     inc = 0.5*T*(g(s_prev) + g(s))
     return tf.reshape(XY0, (1, 2)) + tf.cumsum(inc, axis=0)
@@ -168,6 +172,8 @@ def integrate_xy(XY0, s_prev, s, T):
 class MPC:
     def __init__(self, predictor: Predictor, cfg: Config, Q=None, P=None):
         self.pred, self.cfg = predictor, cfg
+        self.sys = sysm = get_system(cfg)
+        self.n_u = n_u = sysm.n_u
         m = cfg.mpc
         self.N, self.T = m.N, cfg.T
         self.dtype = cfg.dtype
@@ -180,9 +186,9 @@ class MPC:
         self.w_rmax = float(m.w_rmax)
         self.lo = np.asarray(cfg.u_min)/self.S_u
         self.hi = np.asarray(cfg.u_max)/self.S_u
-        self.bounds = [(self.lo[j], self.hi[j]) for _ in range(self.N) for j in range(2)]
+        self.bounds = [(self.lo[j], self.hi[j]) for _ in range(self.N) for j in range(n_u)]
         self.u_tilde_prev = None                     # last applied (normalised) input
-        self.u_seq = None                            # last solution (N, 2) normalised
+        self.u_seq = None                            # last solution (N, n_u) normalised
         self.n_calls = 0
         S_u_t = tf.constant(self.S_u, self.dtype)
         T_t = tf.constant(self.T, self.dtype)
@@ -191,15 +197,15 @@ class MPC:
         def cost_and_grad(s0, XY0, u_flat, u_prev, ref, *extra):
             with tf.GradientTape() as tape:
                 tape.watch(u_flat)
-                u_t = tf.reshape(u_flat, (self.N, 2))
+                u_t = tf.reshape(u_flat, (self.N, n_u))
                 u = u_t*S_u_t
-                s = self.pred.rollout(s0, u, extra)                       # (N, 4)
-                s_prev = tf.concat([tf.reshape(s0, (1, 4)), s[:-1]], axis=0)
-                XY = integrate_xy(XY0, s_prev, s, T_t)
-                z = tf.concat([s, XY], axis=1)
+                s = self.pred.rollout(s0, u, extra)                       # (N, n_s)
+                s_prev = tf.concat([tf.reshape(s0, (1, -1)), s[:-1]], axis=0)
+                XY = integrate_xy(XY0, s_prev, s, T_t, sysm)
+                z = sysm.track_vector(s, XY)
                 e = z - ref
                 J_track = tf.reduce_sum(tf.square(e[:-1])*self.Q) + tf.reduce_sum(tf.square(e[-1])*self.P)
-                du = u_t - tf.concat([tf.reshape(u_prev, (1, 2)), u_t[:-1]], axis=0)
+                du = u_t - tf.concat([tf.reshape(u_prev, (1, n_u)), u_t[:-1]], axis=0)
                 J_u = tf.reduce_sum(tf.square(u_t)*self.R) + tf.reduce_sum(tf.square(du)*self.R_D)
                 viol = tf.nn.relu(tf.abs(s[:, 2]) - self.r_max)
                 J_r = self.w_rmax*tf.reduce_sum(tf.square(viol))
@@ -215,7 +221,7 @@ class MPC:
 
     def warm_start(self, x_meas):
         if self.u_seq is None:
-            u0 = np.zeros((self.N, 2))
+            u0 = np.zeros((self.N, self.n_u))
             from .plant import trim_force
             u0[:, 0] = trim_force(max(x_meas[0], 0.5), self.cfg.params)/self.S_u[0]
             return np.clip(u0, self.lo, self.hi)
@@ -223,11 +229,11 @@ class MPC:
 
     def cost(self, x, u_tilde_flat, ref_seq, u_prev=None, extra=None):
         """Cost, gradient and predicted z for given normalised inputs (numpy)."""
-        s0 = tf.constant(np.asarray(x[:4], float), self.dtype)
-        XY0 = tf.constant(np.asarray(x[4:6], float), self.dtype)
-        u_prev = np.zeros(2) if u_prev is None else u_prev
+        s0 = tf.constant(np.asarray(self.sys.from_full(x), float), self.dtype)
+        XY0 = tf.constant(np.asarray(self.sys.xy(x), float), self.dtype)
+        u_prev = np.zeros(self.n_u) if u_prev is None else u_prev
         if extra is None:
-            extra = self.pred.prepare(x[:4], np.reshape(u_tilde_flat, (self.N, 2))*self.S_u)
+            extra = self.pred.prepare(self.sys.from_full(x), np.reshape(u_tilde_flat, (self.N, self.n_u))*self.S_u)
         J, g, z = self._cost_and_grad(s0, XY0, tf.constant(np.asarray(u_tilde_flat, float), self.dtype),
                                       tf.constant(np.asarray(u_prev, float), self.dtype),
                                       tf.constant(np.asarray(ref_seq, float), self.dtype), *extra)
@@ -239,9 +245,10 @@ class MPC:
         t0 = time.perf_counter()
         u_ws = self.warm_start(x_meas)
         u_prev = self.u_tilde_prev if self.u_tilde_prev is not None else u_ws[0]
-        extra = self.pred.prepare(x_meas[:4], u_ws*self.S_u)
-        s0 = tf.constant(np.asarray(x_meas[:4], float), self.dtype)
-        XY0 = tf.constant(np.asarray(x_meas[4:6], float), self.dtype)
+        s_meas = self.sys.from_full(x_meas)
+        extra = self.pred.prepare(s_meas, u_ws*self.S_u)
+        s0 = tf.constant(np.asarray(s_meas, float), self.dtype)
+        XY0 = tf.constant(np.asarray(self.sys.xy(x_meas), float), self.dtype)
         u_prev_t = tf.constant(np.asarray(u_prev, float), self.dtype)
         ref_t = tf.constant(np.asarray(ref_seq, float), self.dtype)
         n_eval = [0]
@@ -256,7 +263,7 @@ class MPC:
 
         res = minimize(fun, u_ws.ravel(), jac=True, method=m.solver, bounds=self.bounds,
                        options=dict(maxiter=m.maxiter, ftol=m.ftol))
-        u_seq = np.clip(res.x.reshape(self.N, 2), self.lo, self.hi)
+        u_seq = np.clip(res.x.reshape(self.N, self.n_u), self.lo, self.hi)
         self.u_seq = u_seq
         self.u_tilde_prev = u_seq[0].copy()
         self.n_calls += 1

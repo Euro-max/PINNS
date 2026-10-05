@@ -1,5 +1,6 @@
 # Default configuration.  See pinc/config.py for the meaning of every entry.
 T: 0.1                 # control period [s]
+system: bicycle        # vehicle system (pinc/system.py)
 dtype: float64
 actuator_lag: false    # v1: zero-order hold on commands
 

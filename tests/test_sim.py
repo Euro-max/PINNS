@@ -81,10 +81,10 @@ def test_no_module_writes_reference_into_state():
 
 
 def test_sim_state_only_changes_via_plant():
-    """In sim.py the only assignment to the plant state array is the plant.simulate call."""
+    """In sim.py the only assignment to the plant state array is the plant integrator call."""
     with open(os.path.join(ROOT, "pinc", "sim.py")) as fh:
         src = fh.read()
     assigns = re.findall(r"^\s*x\[[^\]]*\]\s*=\s*(.*)$", src, flags=re.M)
     assert len(assigns) == 2, assigns                          # x[0] = x0 and x[k+1] = plant...
-    assert any("plant.simulate" in a for a in assigns)
+    assert any("sysm.plant_simulate" in a for a in assigns)
     assert all("ref" not in a for a in assigns)

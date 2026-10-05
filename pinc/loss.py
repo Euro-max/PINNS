@@ -1,22 +1,25 @@
 """
 Data, initial-condition and physics losses for PINC training.
 
-`time_derivative` returns ds/dt in PHYSICAL units, shape (B, 4): it
+`time_derivative` returns ds/dt in PHYSICAL units, shape (B, n_s): it
 differentiates every output w.r.t. input column 0 ONLY (the scaled time
 t/T), then applies the chain rule 1/T and the output scale S_x.  This
 fixes D1 (sum-of-outputs gradient), D2 (wrong input column) and D3
 (missing 1/T).
 
-Physics residual: R = (ds/dt - f(s, u)) / S_f with f from plant_tf (first
-four states) and S_f a per-state characteristic rate.  All four residuals
-are included (config `loss.residual_mask` allows ablation).
+Physics residual: R = (ds/dt - f(s, u)) / S_f with f the physics prior of the
+system (`pinc/system.py`; bicycle: plant_tf on the first four states) and S_f
+a per-state characteristic rate.  All residuals are included (config
+`loss.residual_mask` allows ablation).
+
+Network input layout: z = [t/T, s0/S_x (n_s), u/S_u (n_u)].
 """
 from __future__ import annotations
 
 import tensorflow as tf
 
-from . import plant_tf
 from .config import Config
+from .system import get_system
 
 
 def _call(model, z, training):
@@ -42,14 +45,14 @@ def _forward_with_reverse(model, z, training=False):
     with tf.GradientTape(persistent=True) as tape:
         tape.watch(z)
         s_hat = _call(model, z, training)
-        cols = [s_hat[:, i] for i in range(4)]
+        cols = [s_hat[:, i] for i in range(s_hat.shape[1])]
     grads = [tape.gradient(c, z)[:, 0] for c in cols]
     del tape
     return s_hat, tf.stack(grads, axis=1)
 
 
 def forward_and_time_derivative(model, z, S_x, T, method="forward", training=False):
-    """Returns (s_hat scaled (B,4), ds/dt physical (B,4))."""
+    """Returns (s_hat scaled (B, n_s), ds/dt physical (B, n_s))."""
     if method == "forward":
         s_hat, ds_dtau = _forward_with_jvp(model, z, training)
     elif method == "reverse":
@@ -62,20 +65,21 @@ def forward_and_time_derivative(model, z, S_x, T, method="forward", training=Fal
 
 
 def time_derivative(model, z, S_x, T, method="forward"):
-    """ds/dt in physical units, shape (B, 4)."""
+    """ds/dt in physical units, shape (B, n_s)."""
     return forward_and_time_derivative(model, z, S_x, T, method)[1]
 
 
 def physics_residual(model, z, cfg: Config, params=None, method="forward", training=False):
-    """Scaled residual R (B, 4).  `params` default: nominal vehicle."""
+    """Scaled residual R (B, n_s).  `params` default: nominal vehicle."""
     params = params or cfg.params
     S_x = tf.cast(cfg.S_x, z.dtype)
     S_u = tf.cast(cfg.S_u, z.dtype)
     S_f = tf.cast(cfg.S_f, z.dtype)
+    n_s = len(cfg.scales.S_x)
     s_hat, dsdt = forward_and_time_derivative(model, z, S_x, cfg.T, method, training)
     s = s_hat*S_x
-    u = z[:, 5:7]*S_u
-    f = plant_tf.f_tf(s, u, params, cfg.sim.tyre)
+    u = z[:, 1 + n_s:]*S_u
+    f = get_system(cfg).f_s_tf(s, u, params, cfg.sim.tyre)
     return (dsdt - f)/S_f
 
 
@@ -87,7 +91,8 @@ def data_loss(model, z, s_target, cfg: Config, training=False):
 
 def ic_loss(model, z0, training=False):
     """MSE at t = 0 against the (scaled) initial state carried in the input."""
-    return tf.reduce_mean(tf.square(_call(model, z0, training) - z0[:, 1:5]))
+    s_hat = _call(model, z0, training)
+    return tf.reduce_mean(tf.square(s_hat - z0[:, 1:1 + s_hat.shape[1]]))
 
 
 def physics_loss(model, z_c, cfg: Config, params=None, method="forward", training=False):
