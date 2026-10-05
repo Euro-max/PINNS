@@ -47,6 +47,10 @@ class Bicycle:
         """Tracked vector z = [vx, vy, r, psi, X, Y] of the full plant state (the first six states)."""
         return np.asarray(x)[..., :6]
 
+    def initial_state(self, z):
+        """Full plant state from a reference start [vx, vy, r, psi, X, Y]."""
+        return np.asarray(z, float).copy()
+
     # ---- ground truth (NumPy) -----------------------------------------------
     def rk4_step(self, x, u, dt, params, tyre="linear"):
         return plant.rk4_step(x, u, dt, params, tyre)
@@ -124,6 +128,14 @@ class HighFidelity:
 
     def track_full(self, x):
         return np.asarray(x)[..., :6]
+
+    def initial_state(self, z):
+        """Full plant state from a reference start [vx, vy, r, psi, X, Y]: wheels rolling freely, actuators
+        at the trim force and zero steer."""
+        z = np.asarray(z, float)
+        x = self._H.free_rolling_state(z[0], self.truth, vy=z[1], r=z[2], psi=z[3])
+        x[4:6] = z[4:6]
+        return x
 
     # ---- ground truth (NumPy) ----------------------------------------------------
     def rk4_step(self, x, u, dt, params=None, tyre=None):

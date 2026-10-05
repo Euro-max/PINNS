@@ -17,6 +17,7 @@ from pinc.metrics import bootstrap_ci, paired_wilcoxon  # noqa: E402
 from pinc.mpc import ARMS, make_controller  # noqa: E402
 from pinc.refs import REFERENCES, make_reference  # noqa: E402
 from pinc.sim import closed_loop_metrics, perturb_x0, simulate  # noqa: E402
+from pinc.system import get_system  # noqa: E402
 
 METRICS = ("iae_vx", "rmse_vx", "max_vx", "iae_psi", "rmse_psi", "iae_Y", "rmse_Y", "max_Y", "effort",
            "viol_time_r", "solve_mean", "solve_p95", "nit_mean", "success_rate", "rise_time", "settling_time")
@@ -33,10 +34,11 @@ def run_all(cfg, arms, refs, seeds, models, run_dir, duration, verbose=False, pl
         ref = make_reference(rname, cfg)
         for arm in arms:
             ctrl = make_controller(arm, cfg, models, ref.Q, ref.P)
-            ctrl(0.0, ref.x0(), ref)            # compile the cost function before timing (simulate() resets the controller)
+            x_start = get_system(cfg).initial_state(ref.x0())
+            ctrl(0.0, x_start, ref)             # compile the cost function before timing (simulate() resets the controller)
             for seed in seeds:
                 rng = np.random.default_rng(10_000 + seed)
-                x0 = perturb_x0(ref.x0(), cfg.sim.x0_sigma, rng)
+                x0 = perturb_x0(x_start, cfg.sim.x0_sigma, rng)
                 log = simulate(ctrl, plant_params, ref, x0, duration, cfg.sim.noise_sigma, seed, cfg, tyre, disturbance)
                 m = closed_loop_metrics(log, cfg, ref)
                 results[rname][arm].append((seed, m))

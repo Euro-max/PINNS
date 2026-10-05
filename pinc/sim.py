@@ -61,7 +61,8 @@ def simulate(controller, plant_params: dict, ref: Reference, x0, duration: float
 
 
 def perturb_x0(x0, sigma, rng):
-    return np.asarray(x0, float) + np.asarray(sigma, float)*rng.standard_normal(6)
+    x0 = np.asarray(x0, float)
+    return x0 + np.asarray(sigma, float)*rng.standard_normal(x0.size)
 
 
 def closed_loop_metrics(log: dict, cfg: Config, ref: Reference) -> dict:

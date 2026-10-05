@@ -71,15 +71,20 @@ class PINCPredictor(Predictor):
 
 
 class RK4Predictor(Predictor):
-    """TF RK4 with the nominal parameters, fixed substep cfg.mpc.dt_pred."""
+    """TF RK4 with the nominal parameters, fixed substep cfg.mpc.dt_pred.  model='prior' is the system's
+    physics model (for the single-track system: the exact plant); model='true' is the true plant in
+    network coordinates (high-fidelity system only: the NMPC-HF reference arm)."""
     name = "rk4"
 
-    def __init__(self, cfg: Config, params=None, name="rk4"):
+    def __init__(self, cfg: Config, params=None, name="rk4", model="prior"):
         self.cfg, self.name = cfg, name
         self.params = params or cfg.params           # NOMINAL by construction
         self.dt, self.T = cfg.mpc.dt_pred, cfg.T
         self.tyre = "linear"
         self.sys = get_system(cfg)
+        if model not in ("prior", "true"):
+            raise ValueError(model)
+        self._step = self.sys.rk4_step_s_tf if model == "prior" else self.sys.rk4_step_s_true_tf
 
     def step(self, s, u):
         """One control period of RK4 substeps as a tf.while_loop (keeps the
@@ -88,7 +93,7 @@ class RK4Predictor(Predictor):
         p, dt, tyre = self.params, self.dt, self.tyre
 
         def body(i, s):
-            return i + 1, self.sys.rk4_step_s_tf(s, u, dt, p, tyre)
+            return i + 1, self._step(s, u, dt, p, tyre)
         _, s = tf.while_loop(lambda i, s: i < n, body, (tf.constant(0), s), maximum_iterations=n)
         return s
 
@@ -284,6 +289,8 @@ def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P
     models = models or {}
     if arm == "nmpc_rk4":
         pred = RK4Predictor(cfg)
+    elif arm == "nmpc_true":
+        pred = RK4Predictor(cfg, name="nmpc_true", model="true")
     elif arm == "pinc":
         pred = PINCPredictor(models["pinc"], cfg, name="pinc")
     elif arm == "blackbox":
@@ -296,4 +303,4 @@ def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P
 
 
 ARMS = ("nmpc_rk4", "pinc", "blackbox", "ltv")
-ARM_LABELS = dict(nmpc_rk4="NMPC-RK4", pinc="PINC-MPC", blackbox="Black-box-MPC", ltv="LTV-MPC")
+ARM_LABELS = dict(nmpc_rk4="NMPC-RK4", pinc="PINC-MPC", blackbox="Black-box-MPC", ltv="LTV-MPC", nmpc_true="NMPC-true")
