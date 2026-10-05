@@ -27,11 +27,11 @@ LATEX/           manuscript (main.tex); LATEX/generated/ holds tables, figures a
 
 ## Install
 
-Python 3.14 with TensorFlow 2.22 (release candidate at the time of writing); pinned versions in
-`requirements.txt`.
+Python 3.13 with TensorFlow 2.21.0, the latest stable release (it does not support Python 3.14);
+pinned versions in `requirements.txt`.
 
 ```
-python3 -m venv .venv
+python3.13 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
 
@@ -39,12 +39,16 @@ If the system Python has no `venv`/`pip` module (e.g. WSL without `python3-venv`
 [uv](https://docs.astral.sh/uv/) instead.  For an NVIDIA GPU add TensorFlow's CUDA extra:
 
 ```
-uv venv --python 3.14 .venv
-uv pip install --python .venv/bin/python -r requirements.txt "tensorflow[and-cuda]==2.22.0rc0"
+uv venv --python 3.13 .venv
+uv pip install --python .venv/bin/python -r requirements.txt "tensorflow[and-cuda]==2.21.0"
 ```
 
-`pinc/__init__.py` sets `TF_FORCE_GPU_ALLOW_GROWTH=true`: TensorFlow's default up-front
-reservation of the whole GPU fails under WSL2.  Keep `dtype: float64` on the GPU as well: in
+`pinc/__init__.py` sets `TF_FORCE_GPU_ALLOW_GROWTH=true` (TensorFlow's default up-front
+reservation of the whole GPU fails under WSL2) and preloads `libcusolver` from the
+`nvidia-cusolver-cu12` wheel (TensorFlow 2.21's pip build does not search that folder and
+otherwise silently runs without the GPU).  Training uses the GPU or the CPU equally well in
+float64; MPC solve times must be measured with the GPU hidden (`CUDA_VISIBLE_DEVICES=-1`): the
+batch-1 XLA-compiled float64 cost is about 40x slower on the GPU.  Keep `dtype: float64` on the GPU as well: in
 float32 the L-BFGS line search stalls after a few iterations at loss levels of ~1e-6 and the
 final model is ~5x worse on validation (`results/env_check/`).
 
@@ -137,7 +141,10 @@ to keep the GPU busy, so the speed-up is modest.
 ## Reproducibility caveat
 
 Seeds fix the data, the initialisation and the collocation resampling, and every run records its
-seed, git hash and package versions.  Bit-level reproducibility is not achieved on this platform:
-two identical runs differ in the last floating-point bit per evaluation (even with `--threads 1`),
-which grows to ~1 % in the final validation loss over a full training.  Report numbers with the
+seed, git hash and package versions.  A rerun on the same machine and software reproduces a
+model bit for bit (`results/phase1_check`), but a different TensorFlow version or device changes
+the last floating-point bit of some evaluations.  Adam keeps such differences at ~1e-12; L-BFGS
+amplifies them: retraining `pinc_v2_s0` with TensorFlow 2.21.0 instead of 2.22.0rc0 changed the
+validation data loss by 4.5 % (`results/tf221_check`), within the 9.6 % spread over training seeds
+(E10).  The published v2 results were produced with TensorFlow 2.22.0rc0.  Report numbers with the
 confidence intervals the experiment scripts produce, not as exact values.
