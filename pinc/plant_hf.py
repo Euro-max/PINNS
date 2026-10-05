@@ -101,8 +101,8 @@ def vertical_loads(vx, r, F, p, xp=NP):
     ax = (F - 0.5*p["rho"]*p["Cd"]*p["A"]*vxs**2 - p["Frr"]*xp.tanh(vx/0.1))/m
     ay = vx*r
     dlong = m*ax*p["h"]/(2*L)
-    dlat_f = p["chi_f"]*m*ay*p["h"]/p["t_f"]
-    dlat_r = (1.0 - p["chi_f"])*m*ay*p["h"]/p["t_r"]
+    dlat_f = p["chi_f"]*m*ay*p["h"]/p["t_f"] if p["t_f"] > 0 else 0.0*ay      # zero track (reduced model): no transfer
+    dlat_r = (1.0 - p["chi_f"])*m*ay*p["h"]/p["t_r"] if p["t_r"] > 0 else 0.0*ay
     Fz0 = static_loads(p)
     Fz = [Fz0[0] - dlong - dlat_f, Fz0[1] - dlong + dlat_f, Fz0[2] + dlong - dlat_r, Fz0[3] + dlong + dlat_r]
     return [xp.maximum(z, FZ_MIN) for z in Fz]
@@ -139,7 +139,11 @@ def f(x, u, p, xp=NP):
         vden = xp.maximum(xp.abs(vl), V_EPS)
         kappa = (Rw*w[i] - vl)/vden
         alpha = -xp.atan(vs/vden)
-        Fxi, Fyi = tyre_mf.forces(kappa, alpha, Fz[i], p["tyre"], p["mu_scale"], xp, mirror=(yi > 0))
+        if p.get("tyre_model", "mf") == "linear":           # reduced plant (tests): linear tyres, no saturation
+            Fxi = p["C_kappa"]*kappa
+            Fyi = 0.5*(p["Caf"] if i < 2 else p["Car"])*alpha
+        else:
+            Fxi, Fyi = tyre_mf.forces(kappa, alpha, Fz[i], p["tyre"], p["mu_scale"], xp, mirror=(yi > 0))
         bx = Fxi*cd - Fyi*sd                             # body-frame force of wheel i
         by = Fxi*sd + Fyi*cd
         sumX, sumY = sumX + bx, sumY + by
