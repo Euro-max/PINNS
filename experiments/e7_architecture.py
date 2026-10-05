@@ -8,19 +8,19 @@ Every trial uses the same data, seeds and optimiser budget (configs/default.yaml
 Selection criterion: validation DATA loss (held-out trajectory accuracy); the
 validation physics loss and the test / extrapolation NRMSE are reported too.
 All trials are documented in table_trials.md; existing runs in results/models are reused.
-Trials run as subprocesses, `--workers` at a time.
+Trials run as subprocesses on the device slots given by `--slots` (pinc/jobs.py).
 """
 import itertools
 import json
 import os
-import subprocess
 import sys
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, savefig, start, write_text, plt  # noqa: E402
-from pinc.config import RESULTS_DIR, ROOT  # noqa: E402
+from pinc.config import RESULTS_DIR  # noqa: E402
+from pinc.jobs import add_slot_args, run_jobs  # noqa: E402
 
 STATES = ("vx", "vy", "r", "psi")
 
@@ -52,49 +52,24 @@ def make_trials(quick, seed):
     return out
 
 
-def cmd_for(t, args, quick):
-    rid = trial_id(t)
-    c = [sys.executable, "-m", "pinc.train", "--config", args.config, "--seed", str(t["seed"]), "--run-id", rid,
-         "--set", f"model.depth={t['depth']}", "--set", f"model.width={t['width']}", "--set", f"model.residual={t['residual']}",
-         "--set", f"model.dropout={t['dropout']}", "--set", f"model.layernorm={str(t['layernorm']).lower()}",
-         "--set", f"loss.lam={t['lam']}", "--set", "train.log_every=100"]
-    for ov in args.overrides:
-        c += ["--set", ov]
+def overrides_for(t, quick):
+    ov = {"model.depth": t["depth"], "model.width": t["width"], "model.residual": t["residual"],
+          "model.dropout": t["dropout"], "model.layernorm": str(t["layernorm"]).lower(), "loss.lam": t["lam"],
+          "train.log_every": 100}
     if quick:
-        c += ["--set", "train.epochs=40", "--set", "train.lbfgs_iters=30", "--set", "train.n_data=4000"]
-    return c
+        ov.update({"train.epochs": 40, "train.lbfgs_iters": 30, "train.n_data": 4000})
+    return ov
 
 
 def main(argv=None):
     ap = base_parser(__doc__)
-    ap.add_argument("--workers", type=int, default=3)
+    add_slot_args(ap)
     a = ap.parse_args(argv)
     cfg, run_dir = start("e7_architecture", a)
     trials = make_trials(a.quick, a.seed)
-    print(f"  {len(trials)} trials, {a.workers} workers")
-    pending = [t for t in trials if not os.path.exists(os.path.join(RESULTS_DIR, "models", trial_id(t), "summary.json"))]
-    print(f"  {len(trials) - len(pending)} reused, {len(pending)} to train")
-    logdir = os.path.join(RESULTS_DIR, "logs")
-    os.makedirs(logdir, exist_ok=True)
-    running = []
-    env = dict(os.environ, PYTHONPATH=ROOT)
-    while pending or running:
-        while pending and len(running) < a.workers:
-            t = pending.pop(0)
-            log = open(os.path.join(logdir, trial_id(t) + ".log"), "w")
-            p = subprocess.Popen(cmd_for(t, a, a.quick), stdout=log, stderr=subprocess.STDOUT, cwd=ROOT, env=env)
-            running.append((t, p, log))
-            print(f"  started {trial_id(t)}", flush=True)
-        for item in list(running):
-            t, p, log = item
-            if p.poll() is not None:
-                log.close()
-                running.remove(item)
-                print(f"  finished {trial_id(t)} (exit {p.returncode})", flush=True)
-                if p.returncode != 0:
-                    raise RuntimeError(f"trial {trial_id(t)} failed; see {log.name}")
-        import time
-        time.sleep(2)
+    print(f"  {len(trials)} trials")
+    run_jobs([(trial_id(t), t["seed"], overrides_for(t, a.quick)) for t in trials], a.slots, a.config, a.overrides,
+             cpu_threads=a.cpu_threads)
 
     rows, recs = [], []
     for t in trials:

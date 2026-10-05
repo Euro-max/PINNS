@@ -9,17 +9,14 @@ Two principled variants, both at the default 8x64 network and budget, selected o
            applied to the lambda = 0 arm too so the PINC / black-box comparison stays fair.
 Phase 2 (--low-data): the best variant and its lambda = 0 counterpart at N = 100 with the E2 budget and 5 seeds.
 """
-import json
 import os
-import subprocess
 import sys
-import time
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, start, write_text  # noqa: E402
-from pinc.config import RESULTS_DIR, ROOT  # noqa: E402
+from pinc.jobs import add_slot_args, run_jobs as pinc_run_jobs, summary as jobs_summary  # noqa: E402
 
 SFT = "[300.0, 15.0, 6.0, 5.0]"          # S_x / T
 PHASE1 = [
@@ -41,30 +38,12 @@ E2_BUDGET = {"train.steps": 6000, "train.lbfgs_iters": 500, "train.n_data": 100,
 
 
 def summary(rid):
-    p = os.path.join(RESULTS_DIR, "models", rid, "summary.json")
-    return json.load(open(p)) if os.path.exists(p) else None
+    return jobs_summary(rid)
 
 
 def run_jobs(jobs, a):
-    pending = [j for j in jobs if summary(j[0]) is None]
-    print(f"  {len(jobs) - len(pending)} reused, {len(pending)} to train", flush=True)
-    running, env = [], dict(os.environ, PYTHONPATH=ROOT)
-    os.makedirs(os.path.join(RESULTS_DIR, "logs"), exist_ok=True)
-    while pending or running:
-        while pending and len(running) < a.workers:
-            rid, seed, ov = pending.pop(0)
-            c = [sys.executable, "-m", "pinc.train", "--config", a.config, "--seed", str(seed), "--run-id", rid]
-            for k, v in ov.items():
-                c += ["--set", f"{k}={v}"]
-            log = open(os.path.join(RESULTS_DIR, "logs", rid + ".log"), "w")
-            running.append((rid, subprocess.Popen(c, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT, env=env), log))
-        for it in list(running):
-            if it[1].poll() is not None:
-                it[2].close(); running.remove(it)
-                print(f"  finished {it[0]} (exit {it[1].returncode})", flush=True)
-                if it[1].returncode:
-                    raise RuntimeError(it[0])
-        time.sleep(2)
+    """Train the missing runs on the device slots of `a` (pinc/jobs.py)."""
+    return pinc_run_jobs(jobs, a.slots, a.config, cpu_threads=a.cpu_threads)
 
 
 def allnrmse(v):
@@ -73,7 +52,7 @@ def allnrmse(v):
 
 def main(argv=None):
     ap = base_parser(__doc__)
-    ap.add_argument("--workers", type=int, default=3)
+    add_slot_args(ap)
     ap.add_argument("--low-data", default=None, help="comma list of phase-1 tags to rerun at N=100 with 5 seeds")
     a = ap.parse_args(argv)
     cfg, run_dir = start("e8_vx_residual", a)

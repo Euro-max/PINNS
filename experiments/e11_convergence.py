@@ -26,6 +26,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, savefig, start, write_text, plt  # noqa: E402
 from experiments.e8_vx_residual import allnrmse, run_jobs, summary  # noqa: E402
 from pinc.config import RESULTS_DIR  # noqa: E402
+from pinc.jobs import add_slot_args  # noqa: E402
 
 LONG = {"train.lbfgs_iters": 5000, "train.log_every": 100}
 RUNS = [
@@ -51,7 +52,7 @@ def curve(run_id):
 
 def main(argv=None):
     ap = base_parser(__doc__)
-    ap.add_argument("--workers", type=int, default=3)
+    add_slot_args(ap)
     a = ap.parse_args(argv)
     cfg, run_dir = start("e11_convergence", a)
     jobs = [(rid(tag, a.seed), a.seed, ov) for tag, ov in RUNS]

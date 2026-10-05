@@ -6,64 +6,33 @@ Train-set sizes {1e2, 1e3, 1e4, 1e5} (quick: {1e2, 1e3, 1e4}), 5 seeds each
 Seeds vary both the training-data draw and the weight initialisation; the
 validation / test sets are fixed.
 """
-import json
 import os
-import subprocess
 import sys
-import time
 
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import COLORS, base_parser, ci_str, finish, md_table, savefig, start, write_text, plt  # noqa: E402
-from pinc.config import RESULTS_DIR, ROOT  # noqa: E402
+from pinc.jobs import add_slot_args, run_jobs, summary  # noqa: E402
 from pinc.metrics import bootstrap_ci  # noqa: E402
 
 STATES = ("vx", "vy", "r", "psi")
 
 
 def _summary(run_id):
-    p = os.path.join(RESULTS_DIR, "models", run_id, "summary.json")
-    if os.path.exists(p):
-        with open(p) as fh:
-            return json.load(fh)
-    return None
+    return summary(run_id)
 
 
-def train_many(jobs, args, workers):
-    """jobs: list of (run_id, seed, overrides dict).  Missing runs are trained as
-    subprocesses, `workers` at a time (same code path as `python -m pinc.train`)."""
-    pending = [j for j in jobs if _summary(j[0]) is None]
-    print(f"  {len(jobs) - len(pending)} runs reused, {len(pending)} to train ({workers} workers)", flush=True)
-    logdir = os.path.join(RESULTS_DIR, "logs")
-    os.makedirs(logdir, exist_ok=True)
-    running = []
-    env = dict(os.environ, PYTHONPATH=ROOT)
-    while pending or running:
-        while pending and len(running) < workers:
-            rid, seed, ov = pending.pop(0)
-            c = [sys.executable, "-m", "pinc.train", "--config", args.config, "--seed", str(seed), "--run-id", rid]
-            for k, v in ov.items():
-                c += ["--set", f"{k}={v}"]
-            for o in args.overrides:
-                c += ["--set", o]
-            log = open(os.path.join(logdir, rid + ".log"), "w")
-            running.append((rid, subprocess.Popen(c, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT, env=env), log))
-        for item in list(running):
-            rid, p, log = item
-            if p.poll() is not None:
-                log.close()
-                running.remove(item)
-                print(f"  finished {rid} (exit {p.returncode})", flush=True)
-                if p.returncode != 0:
-                    raise RuntimeError(f"run {rid} failed; see {log.name}")
-        time.sleep(2)
+def train_many(jobs, args):
+    """jobs: list of (run_id, seed, overrides dict); missing runs are trained on the device slots of
+    `args` (pinc/jobs.py, same code path as `python -m pinc.train`)."""
+    run_jobs(jobs, args.slots, args.config, args.overrides, cpu_threads=args.cpu_threads)
 
 
 def main(argv=None):
     ap = base_parser(__doc__)
     ap.add_argument("--lam", type=float, default=None, help="lambda for the PINC arm (default: config)")
-    ap.add_argument("--workers", type=int, default=3)
+    add_slot_args(ap)
     a = ap.parse_args(argv)
     cfg, run_dir = start("e2_data_efficiency", a)
     lam = cfg.loss.lam if a.lam is None else a.lam
@@ -84,7 +53,7 @@ def main(argv=None):
                 rid = (f"e2_{arm}_n{n}_lam{lam_a:g}_s{seed}" + ("_inc" if cfg.model.increment_scaling else "") +
                        ("_quick" if a.quick else ""))
                 jobs.append((rid, seed, ov))
-    train_many(jobs, a, a.workers)
+    train_many(jobs, a)
     for rid, seed, ov in jobs:
         s = _summary(rid)
         arm = "pinc" if rid.startswith("e2_pinc") else "blackbox"

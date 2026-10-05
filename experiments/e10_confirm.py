@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, start, write_text  # noqa: E402
 from experiments.e8_vx_residual import run_jobs, summary  # noqa: E402
 from pinc.config import RESULTS_DIR  # noqa: E402
+from pinc.jobs import add_slot_args  # noqa: E402
 from pinc.metrics import bootstrap_ci  # noqa: E402
 
 SEEDS = [0, 1, 2, 3, 4]
@@ -41,7 +42,7 @@ def rid(lam, n, seed):
 def main(argv=None):
     ap = base_parser(__doc__)
     ap.add_argument("--e8-run", default="e8b")
-    ap.add_argument("--workers", type=int, default=3)
+    add_slot_args(ap)
     a = ap.parse_args(argv)
     cfg, run_dir = start("e10_confirm", a)
     lam, val_by_lam = pick_lambda(a.e8_run)

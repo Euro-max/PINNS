@@ -506,3 +506,5 @@ artifact | command | git hash
 `results/e11_convergence/e11/fig_convergence.pdf` | `python /home/elgondy_wsl/repo/PINNS/experiments/e11_convergence.py --run-id e11 --workers 3` | `b7969ddb941f0937fbb48c81f49455a50db8f6b7-dirty`
 `results/e11_convergence/e11/fig_convergence.png` | `python /home/elgondy_wsl/repo/PINNS/experiments/e11_convergence.py --run-id e11 --workers 3` | `b7969ddb941f0937fbb48c81f49455a50db8f6b7-dirty`
 `results/e11_convergence/e11/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e11_convergence.py --run-id e11 --workers 3` | `b7969ddb941f0937fbb48c81f49455a50db8f6b7-dirty`
+`results/phase1_check/pinc_v2_s0_refactor/summary.json` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --exp phase1_check --run-id pinc_v2_s0_refactor` | `445bc021c1bb8780b9b10fd262c1decab756fb19-dirty`
+`results/phase1_check/pinc_v2_s0_refactor/weights.weights.h5` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --exp phase1_check --run-id pinc_v2_s0_refactor` | `445bc021c1bb8780b9b10fd262c1decab756fb19-dirty`
