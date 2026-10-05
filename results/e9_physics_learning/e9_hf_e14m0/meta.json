@@ -1,0 +1,17 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e9_physics_learning.py --config configs/hf_m0.yaml --run-id e9_hf_e14m0 --models lam0=hfm0_lam0_all_s0,lam1e-3_all=hfm0_lam0.001_all_s0,lam1e-3_nowheel=hfm0_lam0.001_nowheel_s0,lam1e-2_all=hfm0_lam0.01_all_s0,lam1e-2_nowheel=hfm0_lam0.01_nowheel_s0,lam1e-1_all=hfm0_lam0.1_all_s0,lam1e-1_nowheel=hfm0_lam0.1_nowheel_s0",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "6595712eebf94881bad940ad3a5eeef2d4cfc8a1",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "timestamp": "2026-10-05T22:48:24",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}

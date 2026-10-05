@@ -48,21 +48,25 @@ def rms(a, axis=0):
 def main(argv=None):
     ap = base_parser(__doc__)
     ap.add_argument("--models", default=None, help="comma list tag=run_id (default: all finished E8 phase-1 models)")
+    ap.add_argument("--split", default="test", choices=("test", "val"),
+                    help="held-out states for the measurements: test (reporting) or val (model selection)")
     a = ap.parse_args(argv)
     cfg, run_dir = start("e9_physics_learning", a)
     models = [tuple(x.split("=")) for x in a.models.split(",")] if a.models else default_models()
     n_c, n_ic, n_seq = (2000, 20, 5) if a.quick else (20000, 100, 10)
 
-    c = sample_collocation(n_c, cfg.seeds.test + 900, cfg)
+    base = cfg.seeds.val if a.split == "val" else cfg.seeds.test
+    ex_seed = cfg.seeds.val + 1902 if a.split == "val" else cfg.seeds.test_extrap + 902
+    c = sample_collocation(n_c, base + 900, cfg)
     z_c = tf.constant(scale_inputs(c["t"], c["s0"], c["u"], cfg))
-    d = sample_trajectories(n_c, cfg.seeds.test + 901, cfg)
+    d = sample_trajectories(n_c, base + 901, cfg)
     z_d = tf.constant(scale_inputs(d["t"], d["s0"], d["u"], cfg))
     sysm = get_system(cfg)
     f_true = sysm.true_rates(d["s"], d["u"], cfg.params)
 
     rng = np.random.default_rng(4242)
     regions = {}
-    for reg, box, seed in (("in_domain", cfg.box_train, cfg.seeds.test + 902), ("extrap", cfg.box_extrap, cfg.seeds.test_extrap + 902)):
+    for reg, box, seed in (("in_domain", cfg.box_train, base + 902), ("extrap", cfg.box_extrap, ex_seed)):
         s0 = sample_box(n_ic, box, np.random.default_rng(seed), cfg)
         u = control_sequences(n_seq, max(HORIZONS), cfg, rng, s0[:, 0]).reshape(-1, max(HORIZONS), 2)
         s0r = np.repeat(s0, n_seq, axis=0)
