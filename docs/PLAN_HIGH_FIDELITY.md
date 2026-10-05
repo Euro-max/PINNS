@@ -44,9 +44,13 @@ State (12): `x = [vx, vy, r, psi, X, Y, w_fl, w_fr, w_rl, w_rr, F_act, delta_act
 d(F_act)/dt     = (F_cmd     - F_act)    / tau_F
 d(delta_act)/dt = (delta_cmd - delta_act) / tau_delta
 ```
-Torque split: drive (`F_act >= 0`) on the rear axle, `T_rl = T_rr = F_act R_w / 2`; braking (`F_act < 0`)
-on all wheels with front share `beta_f`: `T_f = beta_f F_act R_w / 2` per front wheel,
-`T_r = (1 - beta_f) F_act R_w / 2` per rear wheel.
+Torque split: drive (`F_act >= 0`) with front share `gamma_f` (config; **default 1 = front-wheel drive**,
+0 = rear-wheel drive, in between = all-wheel drive): `T_f = gamma_f F_act R_w / 2` per front wheel,
+`T_r = (1 - gamma_f) F_act R_w / 2` per rear wheel.  Braking (`F_act < 0`) on all wheels with front share
+`beta_f`.  Front-wheel drive is the default because it is the most common passenger-car layout, it
+understeers (stays stable) in the aggressive tests, and it puts combined drive/lateral slip on the steered
+axle, which is where the linear prior is most wrong.  The prior uses the same split (the controller knows
+the drive layout).
 
 **Wheel kinematics.**  Wheel positions in the body frame (y to the left): fl `(lf, +t_f/2)`, fr `(lf, -t_f/2)`,
 rl `(-lr, +t_r/2)`, rr `(-lr, -t_r/2)`.  Hub velocity `v_i = (vx - r y_i, vy + r x_i)`; steer `delta_i = delta_act`
@@ -68,13 +72,21 @@ dFz_lat,r   = (1-chi_f) m a_y h / t_r  left rear -,  right rear +
 Fz_i        = max(sum, Fz_min)
 ```
 
-**Tyres:** Magic Formula with load-dependent cornering stiffness and combined slip (cosine weighting functions):
+**Tyres:** Magic Formula 5.2 (Pacejka, *Tire and Vehicle Dynamics*), pure and combined slip, zero
+camber, no turn slip, with its own load dependence (`PKY1`, `PKY2`, `PDY2`, ... through `dfz = (Fz - FNOMIN)/FNOMIN`).
+Structure of the pure-slip curves and the combined-slip weighting:
 ```
-C_alpha(Fz) = c1 Fz0 sin(2 atan(Fz / (c2 Fz0)))           (degressive in load)
-F_y0 = D_y sin(C_y atan(B_y alpha - E_y (B_y alpha - atan(B_y alpha)))),  D_y = mu Fz,  B_y = C_alpha(Fz)/(C_y D_y)
-F_x0 = D_x sin(C_x atan(B_x kappa - E_x (B_x kappa - atan(B_x kappa)))),  D_x = mu Fz,  B_x = C_kappa(Fz)/(C_x D_x)
-F_x  = cos(C_xa atan(B_xa alpha)) F_x0,      F_y = cos(C_yk atan(B_yk kappa)) F_y0
+F_y0 = D_y sin(C_y atan(B_y alpha_y - E_y (B_y alpha_y - atan(B_y alpha_y)))) + S_Vy,   alpha_y = alpha + S_Hy
+F_x0 = D_x sin(C_x atan(B_x kappa_x - E_x (B_x kappa_x - atan(B_x kappa_x)))) + S_Vx,   kappa_x = kappa + S_Hx
+F_x  = G_xa(alpha, kappa) F_x0,      F_y = G_yk(alpha, kappa) F_y0 + S_Vyk
 ```
+with every coefficient a function of `Fz` given by the MF 5.2 parameter set.
+
+**Tyre data.**  MF 5.2 parameter set for a **205/60R15** passenger-car tyre from the MathWorks Vehicle
+Dynamics Blockset (R2025b, `vdyntire.internal.models.mf52.tm20560R15`), exported to JSON by
+`scripts/export_tyre_params.m`.  It is MathWorks data, so it is read locally from `data/tyre/` (gitignored)
+and cited, not committed.  The friction scaling factors (`LMUX`, `LMUY`) set `mu` for the road-surface
+scenarios.
 
 **Wheel and body dynamics:**
 ```
@@ -86,28 +98,30 @@ dpsi = r ;  dX = vx cos psi - vy sin psi ;  dY = vx sin psi + vy cos psi
 F_aero = 0.5 rho Cd A vx^2 ,  F_roll = Frr tanh(vx/0.1)     (as in plant.py)
 ```
 
-**Calibration.**  Variant **M0 ("calibrated")**: the HF parameters are chosen so that at static load and
-small slip the HF model linearises to the current single-track model (per-axle cornering stiffness
-`2 C_alpha(Fz_static) = Caf = Car = 50 kN/rad`).  The prior is then right in gentle driving, and all of its
+**Calibration.**  Variant **M0 ("calibrated")**: the stiffness scaling factor (`LKY`, and `LKX` for the
+longitudinal slip stiffness) is set so that at static load and small slip the HF model linearises to the
+current single-track model (per-axle cornering stiffness `Caf = Car = 50 kN/rad`); the curve shapes, load
+dependence, saturation and combined slip are left as in the tyre data.  The prior is then right in gentle driving, and all of its
 error is *structural* (saturation, load transfer, combined slip, wheel dynamics, track width).
 Variant **M1 ("mismatched")**: additionally the true tyre stiffnesses, `mu` and actuator time constants
-differ from the prior's nominal values, so part of the error is *parametric* and learnable (decision 2d).
+differ from the prior's nominal values (in particular the tyre data's own, unscaled stiffness, which is
+expected to be well above the prior's 50 kN/rad), so part of the error is *parametric* and learnable
+(decision 2d).
 
 **Stiffness.**  The wheel-slip time constant is about `I_w |v| / (R_w^2 C_kappa)`: ~2 ms at 20 m/s and
 ~0.5 ms at 5 m/s.  Explicit RK4 therefore needs a much smaller step than today's 1 ms; Phase 1 fixes
 `dt_plant` and the NMPC substep from a measured stability/accuracy test, not from this estimate.
 
-**Provisional parameters** (to be fixed in Phase 1, each with a cited source, e.g. Rajamani,
-*Vehicle Dynamics and Control*, and Pacejka, *Tire and Vehicle Dynamics*):
+**Provisional vehicle parameters** (to be fixed in Phase 2, each with a cited source, e.g. Rajamani,
+*Vehicle Dynamics and Control*; wheel radius and nominal load come from the tyre data set):
 
 | parameter | provisional value | parameter | provisional value |
 |---|---|---|---|
 | m, Iz, lf, lr | as `configs/default.yaml` | track t_f, t_r | 1.6 m |
 | CG height h | 0.55 m | front roll share chi_f | 0.55 |
-| wheel radius R_w | 0.31 m | wheel inertia I_w | 1.2 kg m^2 |
+| wheel radius R_w | tyre data (205/60R15: ~0.31 m) | wheel inertia I_w | 1.2 kg m^2 |
 | tau_F, tau_delta | 0.15 s, 0.10 s | brake share beta_f | 0.6 |
-| C_y, C_x | ~1.3, ~1.65 | E_y, E_x, combined-slip B/C | from the cited tyre data set |
-| C_kappa(Fz) | ~15 Fz (per wheel) | mu | 1.0 (M0); scenario-dependent (M1, E5-style tests) |
+| drive share gamma_f | 1 (front-wheel drive) | mu | 1.0 (M0); scenario-dependent (M1, E5-style tests) |
 
 ## 3. Physics prior "P" (`pinc/prior.py`, TF)
 
@@ -201,8 +215,10 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
 5. **Architecture (H8) and open-loop experiments (H2, H3, H4, H7).**
 6. **MPC arms, closed loop and timing (H5, H6).**  *Accept:* the garbage-predictor test still fails loudly
    on the HF plant; FD gradient checks pass for every arm.
-7. **Paper.**  Matched-physics study (current results) and imperfect-prior study (this plan) as two
-   result sections; limitations updated.
+7. **Paper.**  Decided after the results: the matched-physics study (current results) and this
+   imperfect-prior study are kept separate until then.  If the imperfect-prior study shows a clearer
+   contribution for PINC, the paper is framed around both (matched physics as the zero-mismatch end of
+   H3); otherwise the two are reported separately.
 
 ## 8. Risks
 
@@ -217,8 +233,8 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
 - **NMPC-HF solve time.**  If it is too slow to run 30 seeds x 4 references, reduce seeds for that arm and
   say so.
 
-## 9. Open questions
+## 9. Decisions on the former open questions
 
-- Drive layout: rear-wheel drive (proposed) or all-wheel drive?
-- Keep the current matched-physics results in the paper as the first study (proposed), or replace them?
-- Source for the tyre data set (Magic Formula coefficients).
+- **Drive layout:** front-wheel drive by default; the front drive share is a config parameter (§2).
+- **Current results:** kept separate for now; paper framing decided after the H-experiments (Phase 7).
+- **Tyre data:** Vehicle Dynamics Blockset MF 5.2 set for a 205/60R15 tyre, exported locally (§2).
