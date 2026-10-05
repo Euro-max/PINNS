@@ -7,7 +7,10 @@ one on the CPU at the same time roughly doubles throughput, while stacking sever
 on one device only slows each of them down (README, "Hardware and runtimes").
 
 A slot is "gpu" or "cpu"; e.g. slots "gpu,cpu" run two jobs at once.  CPU jobs are hidden
-from the GPU (CUDA_VISIBLE_DEVICES=-1) and get `cpu_threads` intra-/inter-op threads each.
+from the GPU (CUDA_VISIBLE_DEVICES=-1).  Every job gets a thread budget (TF intra-/inter-op threads
+and OpenMP / BLAS threads): `gpu_threads` for a GPU job (its host-side work is small, but unlimited
+it takes ~9 cores and starves a concurrent CPU job), the rest of the logical CPUs split between the
+CPU jobs.
 Finished runs (results/models/<run_id>/summary.json exists) are skipped, so an interrupted
 batch can simply be restarted.
 """
@@ -41,24 +44,28 @@ def parse_slots(slots) -> list:
     return list(slots)
 
 
-def default_cpu_threads(slots) -> int:
-    """Split the logical CPUs between the CPU slots, keeping two for the GPU job(s) and the OS."""
+DEFAULT_GPU_THREADS = 4
+
+
+def default_cpu_threads(slots, gpu_threads: int = DEFAULT_GPU_THREADS) -> int:
+    """Split the logical CPUs left over by the GPU jobs between the CPU slots."""
     n_cpu = sum(1 for s in slots if s == "cpu")
     if n_cpu == 0:
         return 0
-    return max(1, ((os.cpu_count() or 4) - 2*any(s == "gpu" for s in slots))//n_cpu)
+    n_gpu = sum(1 for s in slots if s == "gpu")
+    return max(1, ((os.cpu_count() or 4) - gpu_threads*n_gpu)//n_cpu)
 
 
 def run_jobs(jobs, slots=DEFAULT_SLOTS, config: str | None = None, overrides=(), cpu_threads: int | None = None,
-             exp: str = "models", poll: float = 2.0, verbose: bool = True) -> dict:
+             exp: str = "models", poll: float = 2.0, verbose: bool = True, gpu_threads: int = DEFAULT_GPU_THREADS) -> dict:
     """jobs: list of (run_id, seed, {dotted key: value}).  Returns {run_id: (slot, wall seconds)} for the
     jobs run now.  Raises if any job fails (after the others in flight have finished)."""
     slots = parse_slots(slots)
-    cpu_threads = cpu_threads or default_cpu_threads(slots)
+    cpu_threads = cpu_threads or default_cpu_threads(slots, gpu_threads)
     pending = [j for j in jobs if summary(j[0], exp) is None]
     if verbose:
-        print(f"  {len(jobs) - len(pending)} reused, {len(pending)} to train on slots {slots}"
-              + (f" ({cpu_threads} threads per CPU job)" if "cpu" in slots else ""), flush=True)
+        print(f"  {len(jobs) - len(pending)} reused, {len(pending)} to train on slots {slots} "
+              f"(threads: {gpu_threads} per GPU job, {cpu_threads} per CPU job)", flush=True)
     logdir = os.path.join(RESULTS_DIR, "logs")
     os.makedirs(logdir, exist_ok=True)
     free = list(range(len(slots)))
@@ -75,9 +82,12 @@ def run_jobs(jobs, slots=DEFAULT_SLOTS, config: str | None = None, overrides=(),
             for o in overrides:
                 cmd += ["--set", o]
             env = dict(os.environ, PYTHONPATH=ROOT)
+            n_thr = cpu_threads if slots[i] == "cpu" else gpu_threads
             if slots[i] == "cpu":
                 env["CUDA_VISIBLE_DEVICES"] = "-1"
-                cmd += ["--threads", str(cpu_threads)]
+            for var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
+                env[var] = str(n_thr)
+            cmd += ["--threads", str(n_thr)]
             log = open(os.path.join(logdir, rid + ".log"), "w")
             p = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT, env=env)
             running.append((rid, i, p, log, time.time()))
@@ -109,4 +119,5 @@ def add_slot_args(parser):
     parser.add_argument("--slots", default=DEFAULT_SLOTS,
                         help="comma list of device slots for training jobs, e.g. gpu,cpu (one job per slot)")
     parser.add_argument("--cpu-threads", type=int, default=None, help="threads per CPU job (default: split the CPUs)")
+    parser.add_argument("--gpu-threads", type=int, default=DEFAULT_GPU_THREADS, help="host threads per GPU job")
     return parser

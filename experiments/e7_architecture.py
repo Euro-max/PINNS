@@ -69,7 +69,7 @@ def main(argv=None):
     trials = make_trials(a.quick, a.seed)
     print(f"  {len(trials)} trials")
     run_jobs([(trial_id(t), t["seed"], overrides_for(t, a.quick)) for t in trials], a.slots, a.config, a.overrides,
-             cpu_threads=a.cpu_threads)
+             cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
 
     rows, recs = [], []
     for t in trials:

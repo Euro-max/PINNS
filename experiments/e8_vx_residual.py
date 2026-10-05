@@ -43,7 +43,7 @@ def summary(rid):
 
 def run_jobs(jobs, a):
     """Train the missing runs on the device slots of `a` (pinc/jobs.py)."""
-    return pinc_run_jobs(jobs, a.slots, a.config, cpu_threads=a.cpu_threads)
+    return pinc_run_jobs(jobs, a.slots, a.config, cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
 
 
 def allnrmse(v):

@@ -26,7 +26,7 @@ def _summary(run_id):
 def train_many(jobs, args):
     """jobs: list of (run_id, seed, overrides dict); missing runs are trained on the device slots of
     `args` (pinc/jobs.py, same code path as `python -m pinc.train`)."""
-    run_jobs(jobs, args.slots, args.config, args.overrides, cpu_threads=args.cpu_threads)
+    run_jobs(jobs, args.slots, args.config, args.overrides, cpu_threads=args.cpu_threads, gpu_threads=args.gpu_threads)
 
 
 def main(argv=None):

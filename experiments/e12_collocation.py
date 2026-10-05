@@ -32,7 +32,7 @@ def main(argv=None):
     cfg, run_dir = start("e12_collocation", a)
     jobs = [(rid(n, a.seed), a.seed, {**BUDGET, "train.n_colloc": n, "train.batch_colloc": min(1024, n)})
             for n in N_COLLOC]
-    ran = run_jobs(jobs, a.slots, a.config, a.overrides, cpu_threads=a.cpu_threads)
+    ran = run_jobs(jobs, a.slots, a.config, a.overrides, cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
     rec, rows = {}, []
     base = summary(rid(N_COLLOC[0], a.seed))
     for n in N_COLLOC:
