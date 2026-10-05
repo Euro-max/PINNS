@@ -14,7 +14,7 @@ specification; `paper/CORRECTIONS.md` is the hand-over list for the manuscript.
 
 ```
 pinc/            library: config, plant (NumPy + TF), data, model, loss, train, mpc, refs, sim, metrics
-experiments/     e1_open_loop  e2_data_efficiency  e3_closed_loop  e4_timing  e5_robustness  e6_ablations
+experiments/     e1_open_loop ... e6_ablations, e7_architecture, e8_vx_residual, e9_physics_learning, e10_confirm
 tests/           pytest suite (plant, data, model, loss, mpc, sim)
 configs/         default.yaml -- the single source of truth for parameters, scales, seeds
 scripts/         compute_scales.py, train_lambda_sweep.sh, run_all.sh
@@ -34,6 +34,19 @@ Python 3.14 with TensorFlow 2.22 (release candidate at the time of writing); pin
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 ```
+
+If the system Python has no `venv`/`pip` module (e.g. WSL without `python3-venv`), use
+[uv](https://docs.astral.sh/uv/) instead.  For an NVIDIA GPU add TensorFlow's CUDA extra:
+
+```
+uv venv --python 3.14 .venv
+uv pip install --python .venv/bin/python -r requirements.txt "tensorflow[and-cuda]==2.22.0rc0"
+```
+
+`pinc/__init__.py` sets `TF_FORCE_GPU_ALLOW_GROWTH=true`: TensorFlow's default up-front
+reservation of the whole GPU fails under WSL2.  Keep `dtype: float64` on the GPU as well: in
+float32 the L-BFGS line search stalls after a few iterations at loss levels of ~1e-6 and the
+final model is ~5x worse on validation (`results/env_check/`).
 
 ## Test
 
@@ -69,7 +82,13 @@ validation loss is restored before saving.
 .venv/bin/python -m experiments.e3_closed_loop      # 4 references x 30 seeds x 4 arms
 .venv/bin/python -m experiments.e4_timing           # solve time vs horizon, CPU single thread
 .venv/bin/python -m experiments.e5_robustness       # plant mismatch, controller nominal
+.venv/bin/python -m experiments.e8_vx_residual      # residual rescaling variants (led to model.increment_scaling)
+.venv/bin/python -m experiments.e9_physics_learning # residual, derivative error and horizon error per model
+.venv/bin/python -m experiments.e10_confirm         # 5-seed PINC vs data-only confirmation
 ```
+
+The current (v2, increment-scaled) results were produced by `scripts/run_queue_v2.sh` plus E8-E10;
+see `docs/RESULTS.md`.
 
 Every script accepts `--quick` (reduced sizes, results labelled `quick_*`), `--run-id`, `--seed`,
 `--set key=value`, and `--pinc-model` / `--blackbox-model` (default: `results/models/pinc_default_s0`
@@ -101,7 +120,7 @@ below.  Training runs that ran three at a time (E7, E2) were slowed by contentio
 
 | step | wall time |
 |---|---|
-| `pytest` (51 tests) | ~1.5 min |
+| `pytest` (49 tests) | ~1.5 min |
 | one default model (8x64, 300 Adam epochs + 500 L-BFGS) | ~4-8 min |
 | E7 architecture study (56 trainings, 3 workers) | ~9 h |
 | E6 ablations (13 trainings, 3 reused from E7) | 64 min |
@@ -110,6 +129,10 @@ below.  Training runs that ran three at a time (E7, E2) were slowed by contentio
 | E3 closed loop (4 refs x 30 seeds x 4 arms) | 17.5 min |
 | E5 robustness (9 settings x 30 seeds x 4 arms) | 40 min |
 | E2 data efficiency (40 trainings, 3 workers) | 3.5 h |
+
+On an RTX 5080 Laptop GPU (WSL2, float64) one default model takes 223 s against 461 s on the CPU
+above, with the same validation loss to 0.5 % (`results/env_check/`); the 8x64 network is too small
+to keep the GPU busy, so the speed-up is modest.
 
 ## Reproducibility caveat
 

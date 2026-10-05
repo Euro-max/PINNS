@@ -5,3 +5,6 @@ import os as _os
 # floating-point reductions and breaks bit-reproducibility.
 _os.environ.setdefault("TF_ENABLE_ONEDNN_OPTS", "0")
 _os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+# Allocate GPU memory on demand: the default up-front reservation of almost
+# the whole device fails repeatedly under WSL2.
+_os.environ.setdefault("TF_FORCE_GPU_ALLOW_GROWTH", "true")

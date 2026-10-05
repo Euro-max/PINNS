@@ -488,3 +488,7 @@ artifact | command | git hash
 `results/e2_data_efficiency/e2_v2/fig_nrmse_vs_n.pdf` | `python /home/elgondy/pinn_fix/PINNS/experiments/e2_data_efficiency.py --run-id e2_v2` | `1e4d7e0cf14bd4c897039daa778aebc53b6c832c-dirty`
 `results/e2_data_efficiency/e2_v2/fig_nrmse_vs_n.png` | `python /home/elgondy/pinn_fix/PINNS/experiments/e2_data_efficiency.py --run-id e2_v2` | `1e4d7e0cf14bd4c897039daa778aebc53b6c832c-dirty`
 `results/e2_data_efficiency/e2_v2/summary.json` | `python /home/elgondy/pinn_fix/PINNS/experiments/e2_data_efficiency.py --run-id e2_v2` | `1e4d7e0cf14bd4c897039daa778aebc53b6c832c-dirty`
+`results/env_check/gpu_float64_pinc_v2_s0/summary.json` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --exp env_check --run-id gpu_float64_pinc_v2_s0 --set dtype=float64` | `947304171fb6a4f0972017da452e01092700fab0-dirty`
+`results/env_check/gpu_float64_pinc_v2_s0/weights.weights.h5` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --exp env_check --run-id gpu_float64_pinc_v2_s0 --set dtype=float64` | `947304171fb6a4f0972017da452e01092700fab0-dirty`
+`results/env_check/gpu_float32_pinc_v2_s0/summary.json` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --exp env_check --run-id gpu_float32_pinc_v2_s0 --set dtype=float32` | `947304171fb6a4f0972017da452e01092700fab0-dirty`
+`results/env_check/gpu_float32_pinc_v2_s0/weights.weights.h5` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --exp env_check --run-id gpu_float32_pinc_v2_s0 --set dtype=float32` | `947304171fb6a4f0972017da452e01092700fab0-dirty`
