@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --run-id colloc_n2500_s0 --exp models --config /home/elgondy_wsl/repo/PINNS/configs/default.yaml --set train.lbfgs_iters=2000 --set train.log_every=100 --set train.n_colloc=2500 --set train.batch_colloc=1024 --threads 4",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "ef3ed10d514cb0bfbe9f98b501710110afae4b30-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "colloc_n2500_s0",
+  "seed": 0,
+  "timestamp": "2026-10-05T17:05:06",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.14.4",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.22.0-rc0"
+  }
+}
