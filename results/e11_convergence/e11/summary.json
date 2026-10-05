@@ -1,0 +1,132 @@
+{
+  "runs": {
+    "adam1500_8x64": {
+      "adam_epochs": 1500,
+      "best_epoch": 2000,
+      "best_stage": "lbfgs",
+      "extrap_all": 0.0015495860938570894,
+      "lbfgs_iters_run": 500,
+      "n_params": 29892,
+      "overrides": {
+        "loss.lam": 0.01,
+        "train.epochs": 1500,
+        "train.log_every": 100
+      },
+      "run_id": "conv_adam1500_8x64_s0",
+      "tail_improvement": 0.306951401303699,
+      "test_all": 0.0003130697199175919,
+      "train_seconds": 2328.913658618927,
+      "val_data_adam_end": 2.8643578668253415e-07,
+      "val_data_at_lbfgs": {
+        "500": 9.884019911258375e-08,
+        "1000": null,
+        "2000": null,
+        "5000": null
+      },
+      "val_data_best": 9.884019911258375e-08
+    },
+    "const_8x64": {
+      "adam_epochs": 300,
+      "best_epoch": 5300,
+      "best_stage": "lbfgs",
+      "extrap_all": 0.0008126131707765738,
+      "lbfgs_iters_run": 5000,
+      "n_params": 29892,
+      "overrides": {
+        "loss.lam": 0.01,
+        "train.lbfgs_iters": 5000,
+        "train.log_every": 100,
+        "train.lr_decay": "none"
+      },
+      "run_id": "conv_const_8x64_s0",
+      "tail_improvement": 0.14184279766307162,
+      "test_all": 0.0001604436925575762,
+      "train_seconds": 3748.994395971298,
+      "val_data_adam_end": 4.6435596312826715e-06,
+      "val_data_at_lbfgs": {
+        "500": 4.933299860926093e-07,
+        "1000": 2.0342430063231934e-07,
+        "2000": 8.106203726230217e-08,
+        "5000": 2.3733162320424583e-08
+      },
+      "val_data_best": 2.3733162320424583e-08
+    },
+    "long_6x256": {
+      "adam_epochs": 300,
+      "best_epoch": 5300,
+      "best_stage": "lbfgs",
+      "extrap_all": 0.0009377338432228566,
+      "lbfgs_iters_run": 5000,
+      "n_params": 332036,
+      "overrides": {
+        "loss.lam": 0.01,
+        "model.depth": 6,
+        "model.width": 256,
+        "train.lbfgs_iters": 5000,
+        "train.log_every": 100
+      },
+      "run_id": "conv_long_6x256_s0",
+      "tail_improvement": 0.1815420685907474,
+      "test_all": 0.00010588099193987594,
+      "train_seconds": 11037.780598640442,
+      "val_data_adam_end": 1.61522255391091e-06,
+      "val_data_at_lbfgs": {
+        "500": 2.9391393715160233e-07,
+        "1000": 1.246871242149795e-07,
+        "2000": 4.380586577047089e-08,
+        "5000": 1.037915786000552e-08
+      },
+      "val_data_best": 1.04121836509781e-08
+    },
+    "long_8x64": {
+      "adam_epochs": 300,
+      "best_epoch": 5300,
+      "best_stage": "lbfgs",
+      "extrap_all": 0.0008534695905199358,
+      "lbfgs_iters_run": 5000,
+      "n_params": 29892,
+      "overrides": {
+        "loss.lam": 0.01,
+        "train.lbfgs_iters": 5000,
+        "train.log_every": 100
+      },
+      "run_id": "conv_long_8x64_s0",
+      "tail_improvement": 0.12876099785706863,
+      "test_all": 0.00017888277891810604,
+      "train_seconds": 7834.2914888858795,
+      "val_data_adam_end": 3.752689615008671e-06,
+      "val_data_at_lbfgs": {
+        "500": 6.005046402954484e-07,
+        "1000": 2.899762081556383e-07,
+        "2000": 1.1736496905951095e-07,
+        "5000": 3.103960799698139e-08
+      },
+      "val_data_best": 3.1039904326303364e-08
+    },
+    "long_8x64_lam0": {
+      "adam_epochs": 300,
+      "best_epoch": 5300,
+      "best_stage": "lbfgs",
+      "extrap_all": 0.0011367269987001144,
+      "lbfgs_iters_run": 5000,
+      "n_params": 29892,
+      "overrides": {
+        "loss.lam": 0.0,
+        "train.lbfgs_iters": 5000,
+        "train.log_every": 100
+      },
+      "run_id": "conv_long_8x64_lam0_s0",
+      "tail_improvement": 0.14095880484787204,
+      "test_all": 0.00020995000489664926,
+      "train_seconds": 7831.203186511993,
+      "val_data_adam_end": 5.698988230219936e-06,
+      "val_data_at_lbfgs": {
+        "500": 9.158640844643214e-07,
+        "1000": 4.1607119600972345e-07,
+        "2000": 1.571493978941649e-07,
+        "5000": 4.3350716285328115e-08
+      },
+      "val_data_best": 4.3350716285328115e-08
+    }
+  }
+}

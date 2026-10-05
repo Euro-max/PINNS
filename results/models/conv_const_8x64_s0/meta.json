@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/pinc/train.py --config /home/elgondy_wsl/repo/PINNS/configs/default.yaml --seed 0 --run-id conv_const_8x64_s0 --set loss.lam=0.01 --set train.lr_decay=none --set train.lbfgs_iters=5000 --set train.log_every=100",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "b7969ddb941f0937fbb48c81f49455a50db8f6b7-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "conv_const_8x64_s0",
+  "seed": 0,
+  "timestamp": "2026-10-05T14:13:50",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.14.4",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.22.0-rc0"
+  }
+}

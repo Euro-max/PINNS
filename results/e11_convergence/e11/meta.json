@@ -1,0 +1,16 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e11_convergence.py --run-id e11 --workers 3",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "b7969ddb941f0937fbb48c81f49455a50db8f6b7-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "seed": 0,
+  "timestamp": "2026-10-05T14:13:55",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.14.4",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.22.0-rc0"
+  }
+}
