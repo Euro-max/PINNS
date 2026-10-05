@@ -555,3 +555,7 @@ artifact | command | git hash
 `results/models/hfm0_lam0.1_nowheel_s0/weights.weights.h5` | `python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --run-id hfm0_lam0.1_nowheel_s0 --exp models --config /home/elgondy_wsl/repo/PINNS/configs/hf_m0.yaml --set loss.lam=0.1 --set loss.residual_mask=[1,1,1,1,1,1,0,0,0,0] --threads 4` | `5012e86ed2a43effc80e4ee42197088fa5dc6be7-dirty`
 `results/e14_hf_lambda/e14_m0/table_hf_lambda.md` | `python /home/elgondy_wsl/repo/PINNS/experiments/e14_hf_lambda.py --run-id e14_m0 --variant m0` | `5012e86ed2a43effc80e4ee42197088fa5dc6be7-dirty`
 `results/e14_hf_lambda/e14_m0/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e14_hf_lambda.py --run-id e14_m0 --variant m0` | `5012e86ed2a43effc80e4ee42197088fa5dc6be7-dirty`
+`results/e13_prior_error/e13_v2/table_prior_error.md` | `python /home/elgondy_wsl/repo/PINNS/experiments/e13_prior_error.py --run-id e13_v2` | `5dbe722caa14efc61610bf0534d1516a80fec8f5`
+`results/e13_prior_error/e13_v2/fig_prior_error.pdf` | `python /home/elgondy_wsl/repo/PINNS/experiments/e13_prior_error.py --run-id e13_v2` | `5dbe722caa14efc61610bf0534d1516a80fec8f5`
+`results/e13_prior_error/e13_v2/fig_prior_error.png` | `python /home/elgondy_wsl/repo/PINNS/experiments/e13_prior_error.py --run-id e13_v2` | `5dbe722caa14efc61610bf0534d1516a80fec8f5`
+`results/e13_prior_error/e13_v2/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e13_prior_error.py --run-id e13_v2` | `5dbe722caa14efc61610bf0534d1516a80fec8f5`

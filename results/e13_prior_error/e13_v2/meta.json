@@ -1,0 +1,16 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e13_prior_error.py --run-id e13_v2",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "5dbe722caa14efc61610bf0534d1516a80fec8f5",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "seed": 0,
+  "timestamp": "2026-10-05T22:42:57",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}

@@ -58,7 +58,7 @@ def main(argv=None):
     d = sample_trajectories(n_c, cfg.seeds.test + 901, cfg)
     z_d = tf.constant(scale_inputs(d["t"], d["s0"], d["u"], cfg))
     sysm = get_system(cfg)
-    f_true = sysm.from_full(sysm.f_full(sysm.to_full(d["s"]), d["u"], cfg.params))
+    f_true = sysm.true_rates(d["s"], d["u"], cfg.params)
 
     rng = np.random.default_rng(4242)
     regions = {}
@@ -88,15 +88,17 @@ def main(argv=None):
         D = (dsdt.numpy() - f_true)/cfg.S_f
         # 3. horizon
         pred = PINCPredictor(net, cfg)
-        hz = {}
+        hz, hz_body = {}, {}
         for reg, (s0r, u, truth, ic) in regions.items():
             p = pred.rollout_batch(tf.constant(s0r), tf.constant(u)).numpy()
             e2 = ((p - truth)/cfg.S_x)**2
             hz[reg] = {h: bootstrap_ci([np.sqrt(np.mean(e2[ic == j, h - 1])) for j in range(n_ic)]) for h in HORIZONS}
+            hz_body[reg] = {h: bootstrap_ci([np.sqrt(np.mean(e2[ic == j, h - 1, :4])) for j in range(n_ic)]) for h in HORIZONS}
             curves.setdefault(reg, {})[tag] = [float(np.sqrt(np.mean(e2[:, h]))) for h in range(max(HORIZONS))]
         res[tag] = dict(run_id=rid, lam=lam, increment_scaling=bool(getattr(net.mcfg, "increment_scaling", False)),
                         S_f_train=list(c_cfg.S_f), residual_rms=rms(R).tolist(), residual_all=float(rms(R.ravel())),
-                        deriv_err_rms=rms(D).tolist(), deriv_err_all=float(rms(D.ravel())), horizon=hz)
+                        deriv_err_rms=rms(D).tolist(), deriv_err_all=float(rms(D.ravel())),
+                        deriv_err_body=float(rms(D[:, :4].ravel())), horizon=hz, horizon_body=hz_body)
         r = res[tag]
         rows.append([tag, f"{lam:g}", " / ".join(f"{v:.2g}" for v in r["residual_rms"]), f"{r['residual_all']:.2g}",
                      " / ".join(f"{v:.2g}" for v in r["deriv_err_rms"]), f"{r['deriv_err_all']:.2g}"] +

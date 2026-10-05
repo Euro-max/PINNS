@@ -71,6 +71,10 @@ class Bicycle:
     def sample_s0(self, n, box, rng):
         return rng.uniform(box.lo(), box.hi(), size=(n, 4))
 
+    def true_rates(self, s, u, params, tyre="linear"):
+        """ds/dt of the TRUE plant in network coordinates (NumPy)."""
+        return self.from_full(self.f_full(self.to_full(s), u, params, tyre))
+
     # ---- physics prior and MPC glue (TensorFlow) ------------------------------
     def f_s_tf(self, s, u, params, tyre="linear"):
         """ds/dt of the network state (B, n_s)."""
@@ -146,6 +150,10 @@ class HighFidelity:
 
     def plant_simulate(self, x0, u, T, dt, params=None, tyre=None):
         return self._H.simulate(x0, u, T, dt, self._p(params))
+
+    def true_rates(self, s, u, params=None, tyre=None):
+        """ds/dt of the TRUE plant in network coordinates (NumPy; the slip-velocity chain rule)."""
+        return self._P.f_s_true(np.asarray(s, float), np.asarray(u, float), self._p(params))
 
     cached_states = True
     COLLOC_POOL = 100_000
