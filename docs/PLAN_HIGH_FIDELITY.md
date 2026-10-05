@@ -241,10 +241,12 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
   is also wrong: frozen wheels add a spurious yaw damping of 4 y² C_kappa /(vx Iz) ≈ 3.9 1/s.  The test
   therefore eliminates the wheel-speed modes and compares the 2×2 matrix entry by entry: within 0.7 % at
   10–30 m/s, driving or coasting (`tests/test_plant_hf.py`, tolerance 1 %).
-- **Open:** cross-check of the MF implementation against MathWorks' own (a Simulink harness on the
-  Vehicle Dynamics Blockset tyre block).  The internal checks pass (small-slip stiffness, saturation,
-  combined slip, sign convention); an independent reference would catch a wrong coefficient in a
-  rarely active term.
+- **Cross-check against MathWorks (done):** `scripts/export_tyre_reference.m` evaluates the Vehicle Dynamics
+  Blockset MF solver (`vdyncsmtire`, as called by the Combined Slip Wheel 2DOF block) on 507 combined-slip
+  points (3 loads, kappa −0.26..0.39, alpha ±0.3).  `pinc/tyre_mf.py` reproduces it to 4e-7 N in Fy and
+  0.07 N in Fx (of 4.8 kN); `tests/test_plant_hf.py::test_tyre_matches_mathworks_solver`.  Two details found
+  on the way: the solver uses SAE axes (y to the right), and the block's scale-factor input must have
+  `lam_muV = 0` (element 4) to switch off slip-speed friction decay, which our model does not include.
 
 ## 8. Risks
 

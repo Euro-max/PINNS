@@ -168,3 +168,17 @@ def test_same_interface_as_single_track_plant(cfg, hf):
         xh = H.simulate(xh, u, 0.1, H.DT_PLANT, hf)
         xb = plant.simulate(xb, [xh[10], xh[11]], 0.1, 1e-3, cfg.params)
     assert abs(xh[0] - xb[0]) < 0.05 and abs(xh[2] - xb[2]) < 0.1*abs(xb[2]) and abs(xh[5] - xb[5]) < 0.1
+
+
+REF = os.path.join(os.path.dirname(tyre_mf.DEFAULT_FILE), "mf_reference.csv")
+
+
+@pytest.mark.skipif(not os.path.exists(REF), reason="MathWorks reference missing: run scripts/export_tyre_reference.m")
+def test_tyre_matches_mathworks_solver(tyre):
+    """Cross-check against the Vehicle Dynamics Blockset MF solver on 507 combined-slip points (3 loads,
+    kappa -0.26..0.39, alpha -0.3..0.3).  The solver uses SAE axes (y right), so its slip angle is the MF
+    argument directly: compare with forces(kappa, -alpha), which evaluates MF at +alpha."""
+    _, kappa, alpha, Fz, Fx_ref, Fy_ref, _ = np.loadtxt(REF, delimiter=",").T
+    Fx, Fy = tyre_mf.forces(kappa, -alpha, Fz, tyre)
+    assert np.max(np.abs(Fy - Fy_ref)) < 1e-3                  # N
+    assert np.max(np.abs(Fx - Fx_ref)) < 0.2                   # N (max observed 0.07 N of 4.8 kN)

@@ -110,7 +110,7 @@ Not worth doing: `float32` (breaks L-BFGS), XLA in `float64` (100× slower), lar
 - **Untracked by choice:** `LATEX/` (manuscript, bibliography, `submission.zip`) and the paper/poster generator scripts. **Risk:** not under version control.
 - **Phase 1 of the plan:** done (refactor, scheduler, E12).
 - **Close-out:** done (TF 2.21 check, E3 rerun `e3_v3`, paper regenerated).
-- **Phase 2 (high-fidelity plant):** plant, tyres and 15 acceptance tests done (70/70 tests pass); open: MF cross-check against MathWorks' implementation (`docs/PLAN_HIGH_FIDELITY.md` §7a).
+- **Phase 2 (high-fidelity plant):** plant, tyres and 15 acceptance tests done (70/70 tests pass); tyre model cross-checked against MathWorks' MF solver (4e-7 N lateral, 0.07 N longitudinal; `docs/PLAN_HIGH_FIDELITY.md` §7a).
 
 ---
 
