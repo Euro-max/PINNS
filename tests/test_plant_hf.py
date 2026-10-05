@@ -80,6 +80,7 @@ def test_m0_calibration_matches_single_track_stiffness(cfg, hf):
     assert 2*tyre_mf.cornering_stiffness(Fz[0], hf["tyre"]) == pytest.approx(cfg.params["Caf"], rel=1e-9)
     m1 = H.make_params(cfg.params, "M1")
     assert m1["tyre"]["LKY"] == 1.0 and 2*tyre_mf.cornering_stiffness(Fz[0], m1["tyre"]) > 1.5*cfg.params["Caf"]
+    assert (m1["tau_F"], m1["tau_delta"]) != (hf["tau_F"], hf["tau_delta"])       # M1 actuators differ from nominal
 
 
 def test_vertical_loads(hf):

@@ -23,7 +23,8 @@ The same code runs on NumPy (the plant) and TensorFlow (NMPC predictor, physics 
 pass xp=NP or xp=TF.  Variants (sec. 2 "Calibration"):
   M0 "calibrated": LKY (and LKX = 1) chosen so that the per-axle cornering stiffness at static load
                    equals the single-track model's Caf; the prior is then right in gentle driving.
-  M1 "mismatched": the tyre data's own stiffness (LKY = 1), about twice the prior's.
+  M1 "mismatched": the tyre data's own stiffness (LKY = 1), about twice the prior's, and actuator time
+                   constants of 0.20 s (force) and 0.08 s (steer) against the prior's nominal 0.15 / 0.10 s.
 """
 from __future__ import annotations
 
@@ -71,7 +72,9 @@ def make_params(vehicle: dict, variant: str = "M0", tyre_file: str | None = None
     p["R_w"] = tyre["UNLOADED_RADIUS"] - Fz_static_f/tyre["VERTICAL_STIFFNESS"]   # loaded radius at static load
     if variant == "M0":
         tyre["LKY"] = (p["Caf"]/2.0)/tyre_mf.cornering_stiffness(Fz_static_f, {**tyre, "LKY": 1.0})
-    elif variant != "M1":
+    elif variant == "M1":
+        p.update(tau_F=0.20, tau_delta=0.08)             # true actuators differ from the prior's nominal 0.15 / 0.10 s
+    else:
         raise ValueError(f"variant must be M0 or M1, got {variant!r}")
     for k, v in overrides.items():
         if k not in p:
