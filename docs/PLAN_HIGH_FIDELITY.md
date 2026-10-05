@@ -72,19 +72,22 @@ dFz_lat,r   = (1-chi_f) m a_y h / t_r  left rear -,  right rear +
 Fz_i        = max(sum, Fz_min)
 ```
 
-**Tyres:** Magic Formula 5.2 (Pacejka, *Tire and Vehicle Dynamics*), pure and combined slip, zero
-camber, no turn slip, with its own load dependence (`PKY1`, `PKY2`, `PDY2`, ... through `dfz = (Fz - FNOMIN)/FNOMIN`).
+**Tyres:** Magic Formula 6.1 (Pacejka, *Tire and Vehicle Dynamics*, 3rd ed.), pure and combined slip, zero
+camber, no turn slip, at nominal inflation pressure (the pressure terms `PPX*`, `PPY*` then vanish), with its own
+load dependence (`PKY1`, `PKY2`, `PKY4`, `PDY2`, ... through `dfz = (Fz - FNOMIN)/FNOMIN`).
 Structure of the pure-slip curves and the combined-slip weighting:
 ```
 F_y0 = D_y sin(C_y atan(B_y alpha_y - E_y (B_y alpha_y - atan(B_y alpha_y)))) + S_Vy,   alpha_y = alpha + S_Hy
 F_x0 = D_x sin(C_x atan(B_x kappa_x - E_x (B_x kappa_x - atan(B_x kappa_x)))) + S_Vx,   kappa_x = kappa + S_Hx
 F_x  = G_xa(alpha, kappa) F_x0,      F_y = G_yk(alpha, kappa) F_y0 + S_Vyk
 ```
-with every coefficient a function of `Fz` given by the MF 5.2 parameter set.
+with every coefficient a function of `Fz` given by the MF 6.1 parameter set.
 
-**Tyre data.**  MF 5.2 parameter set for a **205/60R15** passenger-car tyre from the MathWorks Vehicle
-Dynamics Blockset (R2025b, `vdyntire.internal.models.mf52.tm20560R15`), exported to JSON by
-`scripts/export_tyre_params.m`.  It is MathWorks data, so it is read locally from `data/tyre/` (gitignored)
+**Tyre data.**  MF parameter set for the **"Light passenger car 205/60R15"** tyre of the MathWorks Vehicle
+Dynamics Blockset (R2025b, block `vehdynlibtire/Combined Slip Wheel 2DOF`, 229 parameters: FNOMIN = 4300 N,
+unloaded radius 0.335 m, wheel inertia 1.084 kg m^2), exported by `scripts/export_tyre_params.m`.
+At the static load of our car its cornering stiffness is ~53 kN/rad per wheel (~106 kN/rad per axle,
+about twice the prior's 50 kN/rad).  It is MathWorks data, so it is read locally from `data/tyre/` (gitignored)
 and cited, not committed.  The friction scaling factors (`LMUX`, `LMUY`) set `mu` for the road-surface
 scenarios.
 
@@ -119,7 +122,7 @@ expected to be well above the prior's 50 kN/rad), so part of the error is *param
 |---|---|---|---|
 | m, Iz, lf, lr | as `configs/default.yaml` | track t_f, t_r | 1.6 m |
 | CG height h | 0.55 m | front roll share chi_f | 0.55 |
-| wheel radius R_w | tyre data (205/60R15: ~0.31 m) | wheel inertia I_w | 1.2 kg m^2 |
+| wheel radius R_w | tyre data (0.335 m unloaded) | wheel inertia I_w | tyre data (1.084 kg m^2) |
 | tau_F, tau_delta | 0.15 s, 0.10 s | brake share beta_f | 0.6 |
 | drive share gamma_f | 1 (front-wheel drive) | mu | 1.0 (M0); scenario-dependent (M1, E5-style tests) |
 
@@ -237,4 +240,4 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
 
 - **Drive layout:** front-wheel drive by default; the front drive share is a config parameter (§2).
 - **Current results:** kept separate for now; paper framing decided after the H-experiments (Phase 7).
-- **Tyre data:** Vehicle Dynamics Blockset MF 5.2 set for a 205/60R15 tyre, exported locally (§2).
+- **Tyre data:** Vehicle Dynamics Blockset MF 6.1 set, "Light passenger car 205/60R15", exported locally (§2).
