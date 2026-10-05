@@ -1,0 +1,17 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e3_closed_loop.py --run-id e3_v3 --threads 1 --pinc-model results/models/pinc_v2_s0 --blackbox-model results/models/blackbox_v2_s0",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "c18951465d825b6e68eb9b1dfcbb40c491ed3591",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "timestamp": "2026-10-05T17:54:24",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
