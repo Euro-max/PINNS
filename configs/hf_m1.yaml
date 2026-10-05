@@ -26,7 +26,7 @@ u_max: [3000.0, 0.3]
 scales:
   S_x: [30.0, 1.5, 0.6, 0.5, 6000.0, 0.3, 0.5, 0.5, 0.5, 0.5]
   S_u: [6000.0, 0.3]
-  S_f: [0.858, 1.079, 0.3135, 0.1653, 18870.0, 1.818, 101.3, 99.79, 105.4, 105.2]
+  S_f: [0.8038, 1.096, 0.3174, 0.1683, 18680.0, 1.821, 103.1, 101.6, 107.3, 107.2]
 seeds: {train: 0, val: 1, test: 2, test_extrap: 3, colloc: 4, weights: 5}
 model: {depth: 8, width: 64, activation: tanh, hard_ic: true, residual: none, dropout: 0.0,
   layernorm: false, increment_scaling: true}
