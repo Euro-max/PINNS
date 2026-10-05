@@ -110,7 +110,10 @@ Not worth doing: `float32` (breaks L-BFGS), XLA in `float64` (100× slower), lar
 - **Untracked by choice:** `LATEX/` (manuscript, bibliography, `submission.zip`) and the paper/poster generator scripts. **Risk:** not under version control.
 - **Phase 1 of the plan:** done (refactor, scheduler, E12).
 - **Close-out:** done (TF 2.21 check, E3 rerun `e3_v3`, paper regenerated).
-- **Phase 2 (high-fidelity plant):** plant, tyres and 15 acceptance tests done (70/70 tests pass); tyre model cross-checked against MathWorks' MF solver (4e-7 N lateral, 0.07 N longitudinal; `docs/PLAN_HIGH_FIDELITY.md` §7a).
+- **Phase 2 (high-fidelity plant):** done; tyre model cross-checked against MathWorks' MF solver (4e-7 N lateral, 0.07 N longitudinal; `docs/PLAN_HIGH_FIDELITY.md` §7a).
+- **Phase 3 (prior, system, configs, prior-error map):** done (§7 below).
+- **Phase 4 (training on the HF system):** E14 done, E15 running (§7 below).
+- **Phase 6 wiring (MPC on the HF system):** done and tested; open problem: compiling the true-model NMPC can need ~12 GB RAM (one out-of-memory kill, §7).
 
 ---
 
@@ -137,3 +140,24 @@ Not worth doing: `float32` (breaks L-BFGS), XLA in `float64` (100× slower), lar
 Study 1 (matched physics, current paper) is **not** retrained with the converged budget unless you decide to frame the paper around both studies. The E11 result (ratio unchanged) is enough to state the budget caveat honestly.
 
 ---
+
+---
+
+## 7. Imperfect-prior study: findings so far (2026-10-05, overnight)
+
+| item | result |
+|---|---|
+| Prior-error map (E13, `e13_v2`) | Heading exact; M0 body states close in gentle driving (0.04–0.09 S_f), 10–50× worse near the grip limit; M1 wrong already in gentle driving (stiffness and actuator lags); **wheel states ~1 S_f even at small slip** (the zero-track prior misses the left/right wheel-speed difference while yawing) |
+| One-step accuracy, M0, N = 20 000 (E14) | The physics term **hurts at every λ**; the wheel residuals cause most of it; without them, body states still lose 2× to data-only |
+| Long-horizon accuracy, same models (E9 on E14) | λ = 1e-2 **without wheel residuals: 50-step body-state error 2.4× lower** than data-only (1.0e-2 vs 2.5e-2), extrapolation slightly better; derivative error not improved (0.29–0.34), so the gain is regularisation of chained prediction rather than learning the true dynamics.  **One seed** |
+| Data efficiency, M0 (E15) | Running: N ∈ {100, 1000, 20 000} × λ ∈ {0, 1e-4, 1e-3, 1e-2} (no wheel residuals) × 3 seeds; λ selected on the **validation** 50-step error |
+
+Decisions taken overnight (to review):
+- S_f for the HF system = spread of the **prior's** rates (as for the single-track model). The prior's wheel-slip rates spread ~100 m/s² against ~0.5 for the true plant; wheel residuals are dropped (validated in E14) rather than rescaled.
+- Model selection for the HF study on the validation 50-step body-state error, not the one-step validation loss: E14/E9 showed the two disagree, and long-horizon accuracy is what MPC uses.  Decided before seeing any multi-seed result.
+- Increment scaling capped at 1 (fast wheel states); log-spaced collocation times near t = 0 (half the points).
+
+Open problems:
+- **True-model NMPC compile memory:** one out-of-memory kill at 12.5 GB (21:59) while compiling the true-model controller; a rerun passed in 29 min under load.  Must be fixed before the closed-loop HF experiments (options: no XLA for that arm, fewer substeps with an implicit/semi-implicit wheel update, or a shorter horizon for the reference arm).
+- Measurement noise for the extra plant states (wheel speeds, drive force, steer angle) is assumed, not cited.
+- On this machine the CPU (20 threads) trains the 10-state models ~3× faster than the GPU; consider `--slots cpu,cpu`.
