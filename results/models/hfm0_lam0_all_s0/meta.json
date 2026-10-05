@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 0 --run-id hfm0_lam0_all_s0 --exp models --config /home/elgondy_wsl/repo/PINNS/configs/hf_m0.yaml --set loss.lam=0.0 --threads 4",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "2c82ee32d4247ec11d38caf6d643447e130bd844-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "hfm0_lam0_all_s0",
+  "seed": 0,
+  "timestamp": "2026-10-05T22:04:23",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}

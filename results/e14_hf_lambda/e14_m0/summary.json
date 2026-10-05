@@ -1,0 +1,156 @@
+{
+  "best": "lam0_all",
+  "runs": {
+    "lam0.001_all": {
+      "best_epoch": 2299,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.004557054256727423,
+        "body": 0.004173244206897272,
+        "wheels": 0.014460235770983492
+      },
+      "overrides": {
+        "loss.lam": 0.001
+      },
+      "run_id": "hfm0_lam0.001_all_s0",
+      "test": {
+        "actuators": 0.0033554007506844804,
+        "body": 0.0037206116427510325,
+        "wheels": 0.00760050396888668
+      },
+      "train_seconds": 808.0764236450195,
+      "val_data": 3.052269703492223e-05,
+      "val_phys": 0.3730624949547314
+    },
+    "lam0.001_nowheel": {
+      "best_epoch": 2300,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.004319084521048834,
+        "body": 0.004095477860237618,
+        "wheels": 0.0145008686601304
+      },
+      "overrides": {
+        "loss.lam": 0.001,
+        "loss.residual_mask": "[1,1,1,1,1,1,0,0,0,0]"
+      },
+      "run_id": "hfm0_lam0.001_nowheel_s0",
+      "test": {
+        "actuators": 0.003087570216286457,
+        "body": 0.0037170911629585373,
+        "wheels": 0.005966976648522594
+      },
+      "train_seconds": 445.8872239589691,
+      "val_data": 1.959011822078174e-05,
+      "val_phys": 0.007448780627731858
+    },
+    "lam0.01_all": {
+      "best_epoch": 1033,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.011205872811088766,
+        "body": 0.007313522445433059,
+        "wheels": 0.033784056475679634
+      },
+      "overrides": {
+        "loss.lam": 0.01
+      },
+      "run_id": "hfm0_lam0.01_all_s0",
+      "test": {
+        "actuators": 0.008512068227829782,
+        "body": 0.005804012458720207,
+        "wheels": 0.047878486704784784
+      },
+      "train_seconds": 1051.9121308326721,
+      "val_data": 0.0008100535771440465,
+      "val_phys": 0.22914929215467136
+    },
+    "lam0.01_nowheel": {
+      "best_epoch": 2300,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.006046526035142844,
+        "body": 0.006668164465934853,
+        "wheels": 0.016515663763230676
+      },
+      "overrides": {
+        "loss.lam": 0.01,
+        "loss.residual_mask": "[1,1,1,1,1,1,0,0,0,0]"
+      },
+      "run_id": "hfm0_lam0.01_nowheel_s0",
+      "test": {
+        "actuators": 0.004168058598749884,
+        "body": 0.005790034491602287,
+        "wheels": 0.007413816228130954
+      },
+      "train_seconds": 502.4096863269806,
+      "val_data": 3.252632116087376e-05,
+      "val_phys": 0.0010811866135691287
+    },
+    "lam0.1_all": {
+      "best_epoch": 1124,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.01844304692229406,
+        "body": 0.00877248008085368,
+        "wheels": 0.06302295023201955
+      },
+      "overrides": {
+        "loss.lam": 0.1
+      },
+      "run_id": "hfm0_lam0.1_all_s0",
+      "test": {
+        "actuators": 0.013687982800376891,
+        "body": 0.007250016615578546,
+        "wheels": 0.13211210929647155
+      },
+      "train_seconds": 466.1961531639099,
+      "val_data": 0.006795122197428407,
+      "val_phys": 0.08054880987896054
+    },
+    "lam0.1_nowheel": {
+      "best_epoch": 2300,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.004972210915504799,
+        "body": 0.008452533648961225,
+        "wheels": 0.023786274532737482
+      },
+      "overrides": {
+        "loss.lam": 0.1,
+        "loss.residual_mask": "[1,1,1,1,1,1,0,0,0,0]"
+      },
+      "run_id": "hfm0_lam0.1_nowheel_s0",
+      "test": {
+        "actuators": 0.0031748403096438756,
+        "body": 0.0071594249642837685,
+        "wheels": 0.01237719973186241
+      },
+      "train_seconds": 687.8964323997498,
+      "val_data": 6.947740456193441e-05,
+      "val_phys": 0.0003855709986403447
+    },
+    "lam0_all": {
+      "best_epoch": 2300,
+      "best_stage": "lbfgs",
+      "extrap": {
+        "actuators": 0.003870318864757836,
+        "body": 0.002628421009853465,
+        "wheels": 0.01487381301031045
+      },
+      "overrides": {
+        "loss.lam": 0.0
+      },
+      "run_id": "hfm0_lam0_all_s0",
+      "test": {
+        "actuators": 0.0020989887805171028,
+        "body": 0.0017231478000281004,
+        "wheels": 0.006011370264028281
+      },
+      "train_seconds": 887.8421947956085,
+      "val_data": 1.1561450338918034e-05,
+      "val_phys": 0.4580698715587571
+    }
+  },
+  "variant": "m0"
+}
