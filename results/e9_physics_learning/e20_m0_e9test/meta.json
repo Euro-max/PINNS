@@ -1,0 +1,17 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e20_hf_greybox_qs.py --variant m0 --run-id e20_m0 --slots gpu,gpu,cpu",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "b0875655fb658b5fd05f8a57527f79887336d5e7-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "timestamp": "2026-10-06T15:05:52",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
