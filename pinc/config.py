@@ -92,6 +92,14 @@ class ModelCfg:
     learn_theta: bool = False         # learnable physical parameters of the prior (HF system: Caf, Car, C_kappa, tau_F, tau_delta)
     greybox: bool = False             # the network learns a correction to the prior's own prediction (pinc/greybox.py)
     greybox_prior: str = "full"       # grey-box prior: full (10 states, 1 ms RK4) | qs (quasi-steady wheels, 10 ms RK4)
+    arch: str = "mlp"                 # network architecture (pinc/model.py, ARCHS; E21): mlp | wide via depth/width | modified_mlp |
+                                      # fourier | adaptive | time_basis | deeponet | split | anchored | chebykan
+    fourier_m: int = 32               # fourier: number of random frequencies (2 m features)
+    fourier_sigma: float = 1.0        # fourier: std of the random frequencies (inputs are O(1))
+    time_scales: list = field(default_factory=lambda: [0.005, 0.02])   # time_basis: exponential time constants [s]
+    n_basis: int = 16                 # deeponet: number of trunk functions
+    kan_degree: int = 4               # chebykan: Chebyshev degree of the edge functions
+    kan_layers: int = 3               # chebykan: number of KAN layers (hidden width = width)
 
 
 @dataclass

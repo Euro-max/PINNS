@@ -84,6 +84,10 @@ class Bicycle:
         """One RK4 substep of the network state (the NMPC prediction model)."""
         return plant_tf.rk4_step_tf(s, u, dt, params, tyre)
 
+    def anchor_tf(self, s0, u, t):
+        """Prior-anchored network (E21): one Euler step of the prior from s0 over time t (B, 1); equals s0 at t = 0."""
+        return s0 + t*self.f_s_tf(s0, u)
+
     def planar_velocity(self, s):
         """(vx, vy, psi) of the network state, for integrating X, Y in the MPC."""
         return s[:, 0], s[:, 1], s[:, 3]
@@ -214,6 +218,19 @@ class HighFidelity:
         _, b = tf.while_loop(lambda i, b: i < n, lambda i, b: (i + 1, _rk4_tf(f, b, dt)), (tf.constant(0), s[:, :6]),
                              maximum_iterations=n)
         return tf.concat([b, self._P.slip_qs(b, q, xp)], axis=1)
+
+    ANCHOR_TAU_W = 0.01      # s, time constant of the wheel-slip part of the anchor
+
+    def anchor_tf(self, s0, u, t):
+        """Prior-anchored network (E21), cheap and non-stiff: one Euler step of the quasi-steady prior for the body
+        and actuator states, and an exponential approach (ANCHOR_TAU_W) of the wheel slip to its quasi-steady value.
+        Equals s0 at t = 0; costs one algebraic prior evaluation, no ODE solve."""
+        q, xp = self.prior, self._H.TF
+        b0 = s0[:, :6]
+        body = b0 + t*self._P.f_s_qs(b0, u, q, xp)
+        sig0 = s0[:, 6:]
+        sig = sig0 + (1.0 - tf.exp(-t/self.ANCHOR_TAU_W))*(self._P.slip_qs(b0, q, xp) - sig0)
+        return tf.concat([body, sig], axis=1)
 
     def rk4_step_s_true_tf(self, s, u, dt, params=None, tyre=None):
         f = lambda z: self._P.f_s_true(z, u, self.truth, self._H.TF)
