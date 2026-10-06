@@ -1,10 +1,10 @@
 {
   "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e18_hf_closed_loop.py --variant m0 --run-id e18_m0 --report",
   "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
-  "git": "b6c8c4d27a6ca33c636ee98820fe0016d7ffd8fe-dirty",
+  "git": "0232c72bb0edb7124af2517d557cfadda983dc9f-dirty",
   "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
   "seed": 0,
-  "timestamp": "2026-10-06T12:11:19",
+  "timestamp": "2026-10-06T16:45:57",
   "versions": {
     "matplotlib": "3.11.2",
     "numpy": "2.5.3",

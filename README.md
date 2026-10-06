@@ -8,7 +8,7 @@ The original code (kept unchanged in `legacy/`) had defects that made its result
 
 Study 1 uses a single-track (bicycle) vehicle model, and the physics term in the loss is that same model. The physics term cut the error of the learned dynamics 13-fold and the 50-step prediction error about 2-fold over five seeds, and the test error 14-fold with only 100 training trajectories. In closed loop, PINC-MPC tracked as well as MPC with the exact model.
 
-Study 2 (`docs/PLAN_HIGH_FIDELITY.md`) makes the vehicle more realistic while the physics term keeps the simplified model. The vehicle is a four-wheel model with Magic Formula tyres (a 205/60R15 tyre from the MathWorks Vehicle Dynamics Blockset), load transfer, wheel speeds and actuator lag. Variant M0 is calibrated so the simplified physics is right in gentle driving, and M1 also has its tyre stiffness and actuator lags wrong. With 100 training trajectories the simplified physics still lowered the one-step error 3-fold and the 10-step error about 8-fold on M0. With 20 000 trajectories it gave no reliable gain, and on M1 it only helped once the network was allowed to learn the physics parameters.
+Study 2 (`docs/PLAN_HIGH_FIDELITY.md`) makes the vehicle more realistic while the physics term keeps the simplified model. The vehicle is a four-wheel model with Magic Formula tyres (a 205/60R15 tyre from the MathWorks Vehicle Dynamics Blockset), load transfer, wheel speeds and actuator lag. Variant M0 is calibrated so the simplified physics is right in gentle driving, and M1 also has its tyre stiffness and actuator lags wrong. Over five seeds, with 100 training trajectories the simplified physics lowered the one-step error 3-fold and the 10-step error 6-fold on M0. With 1000 or 20 000 trajectories it gave no reliable gain, and on M1 the physics term made the network worse unless it could learn the physics parameters. A grey-box model, where the network learns a correction to the simplified physics' own prediction, was more accurate than PINC at every data size and never lost the car in closed loop. PINC-MPC remains 4 to 6 times faster than grey-box MPC with a non-stiff version of the physics, which meets the 0.1 s real-time budget up to a horizon of 20 steps where PINC meets it up to 40.
 
 ## Layout
 
@@ -114,6 +114,7 @@ The Study 1 results were produced on an Intel Core Ultra 9 275HX in a virtual ma
 | one Study 2 model (6000 Adam steps and 2000 L-BFGS) | about 6 to 9 min |
 | E3 closed loop | about 20 min |
 | E15 (36 trainings on two devices) | about 4 h |
+| E18 closed loop (one variant, all controllers) | about 3 h, most of it the true-model NMPC at about 8 s per solve |
 
 The GPU gives only a small speed-up for these networks, because they are small and computed in float64. On this laptop the CPU trains the Study 2 models faster than the GPU, so the best throughput comes from running jobs on both.
 
