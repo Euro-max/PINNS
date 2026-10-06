@@ -19,7 +19,7 @@ from pinc.runinfo import make_run_dir, manifest_append, save_json, write_meta  #
 from pinc.tfsetup import setup  # noqa: E402
 from pinc.mpc import ARM_LABELS  # noqa: E402
 
-COLORS = dict(nmpc_rk4="#1f77b4", pinc="#d62728", blackbox="#2ca02c", ltv="#9467bd", nmpc_true="#ff7f0e", ref="k", rk4="#1f77b4",
+COLORS = dict(nmpc_rk4="#1f77b4", pinc="#d62728", blackbox="#2ca02c", ltv="#9467bd", nmpc_true="#ff7f0e", greybox="#8c564b", ref="k", rk4="#1f77b4",
               linear="#9467bd", truth="k")
 LABELS = dict(ARM_LABELS, rk4="RK4 (dt=0.01)", linear="Linear (LTI @ 20 m/s)", truth="RK4 truth")
 
@@ -30,6 +30,7 @@ def base_parser(desc: str) -> argparse.ArgumentParser:
     ap.add_argument("--run-id", default=None)
     ap.add_argument("--pinc-model", default=os.path.join(RESULTS_DIR, "models", "pinc_default_s0"))
     ap.add_argument("--blackbox-model", default=os.path.join(RESULTS_DIR, "models", "blackbox_default_s0"))
+    ap.add_argument("--greybox-model", default=None, help="grey-box model (pinc/greybox.py), for the greybox arm")
     ap.add_argument("--threads", type=int, default=None)
     return ap
 
@@ -45,7 +46,10 @@ def start(exp: str, args):
 
 def load_models(args) -> dict:
     out = {}
-    for name, d in (("pinc", args.pinc_model), ("blackbox", args.blackbox_model)):
+    for name, d in (("pinc", args.pinc_model), ("blackbox", args.blackbox_model),
+                    ("greybox", getattr(args, "greybox_model", None))):
+        if name == "greybox" and not d:
+            continue
         if d and os.path.exists(os.path.join(d, "model.json")):
             out[name] = PINCNet.load_from(d)
         else:

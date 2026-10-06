@@ -25,7 +25,7 @@ from pinc.data import sample_box, sample_collocation, sample_trajectories, scale
 from pinc.loss import forward_and_time_derivative, physics_residual  # noqa: E402
 from pinc.metrics import bootstrap_ci  # noqa: E402
 from pinc.model import PINCNet  # noqa: E402
-from pinc.mpc import PINCPredictor  # noqa: E402
+from pinc.mpc import make_predictor  # noqa: E402
 
 STATES = ("vx", "vy", "r", "psi")
 HORIZONS = (1, 10, 25, 50)
@@ -85,13 +85,17 @@ def main(argv=None):
         if os.path.exists(cj):
             from pinc.config import from_dict
             c_cfg = from_dict(json.load(open(cj)))
-        # 1. residual with the model's own S_f would differ between variants; report it in the COMMON default S_f units
-        R = physics_residual(net, z_c, cfg).numpy()
-        # 2. derivative vs true dynamics
-        _, dsdt = forward_and_time_derivative(net, z_d, cfg.S_x, cfg.T)
-        D = (dsdt.numpy() - f_true)/cfg.S_f
+        if getattr(net.mcfg, "greybox", False):
+            # the network of a grey-box model is a correction, not the state: residual and derivative not defined
+            R = D = np.full((1, len(cfg.S_f)), np.nan)
+        else:
+            # 1. residual with the model's own S_f would differ between variants; report it in the COMMON default S_f units
+            R = physics_residual(net, z_c, cfg).numpy()
+            # 2. derivative vs true dynamics
+            _, dsdt = forward_and_time_derivative(net, z_d, cfg.S_x, cfg.T)
+            D = (dsdt.numpy() - f_true)/cfg.S_f
         # 3. horizon
-        pred = PINCPredictor(net, cfg)
+        pred = make_predictor(net, cfg)
         hz, hz_body = {}, {}
         for reg, (s0r, u, truth, ic) in regions.items():
             p = pred.rollout_batch(tf.constant(s0r), tf.constant(u)).numpy()

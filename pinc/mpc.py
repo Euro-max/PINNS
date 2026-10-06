@@ -126,6 +126,38 @@ class RK4Predictor(Predictor):
         return tf.stack(out, axis=1)
 
 
+class GreyBoxPredictor(PINCPredictor):
+    """Prior RK4 over one control period plus the network's learned correction (pinc/greybox.py)."""
+    name = "greybox"
+
+    def __init__(self, model, cfg: Config, name="greybox"):
+        super().__init__(model, cfg, name)
+        self.prior = RK4Predictor(cfg, name="greybox_prior", model="prior")
+
+    def step(self, s, u):
+        return self.prior.step(s, u) + super().step(s, u) - s
+
+    def rollout(self, s0, u, extra=()):
+        if getattr(self.cfg.mpc, "loop_rollout", False):
+            N = u.shape[0]
+            ta = tf.TensorArray(s0.dtype, size=N)
+
+            def body(k, s, ta):
+                s = self.step(s, tf.reshape(u[k], (1, -1)))
+                return k + 1, s, ta.write(k, s[0])
+            _, _, ta = tf.while_loop(lambda k, s, ta: k < N, body, (tf.constant(0), tf.reshape(s0, (1, -1)), ta),
+                                     maximum_iterations=N)
+            return ta.stack()
+        return super().rollout(s0, u, extra)
+
+
+def make_predictor(model, cfg: Config, name="pinc"):
+    """PINC / data-only network, or the grey-box model when the network was trained as one."""
+    if getattr(model.mcfg, "greybox", False):
+        return GreyBoxPredictor(model, cfg, name)
+    return PINCPredictor(model, cfg, name)
+
+
 class LinearPredictor(Predictor):
     """LTV model: the RK4 one-step map linearised along the warm-start
     trajectory (re-linearised once per solve)."""
@@ -297,7 +329,7 @@ class MPC:
 
 # ---------------------------------------------------------------------------
 def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P=None) -> MPC:
-    """arms: nmpc_rk4 | pinc | blackbox | ltv.  `models` maps arm -> loaded PINCNet."""
+    """arms: nmpc_rk4 | nmpc_true | pinc | blackbox | greybox | ltv.  `models` maps arm -> loaded PINCNet."""
     models = models or {}
     if arm == "nmpc_rk4":
         pred = RK4Predictor(cfg)
@@ -307,6 +339,8 @@ def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P
         pred = PINCPredictor(models["pinc"], cfg, name="pinc")
     elif arm == "blackbox":
         pred = PINCPredictor(models["blackbox"], cfg, name="blackbox")
+    elif arm == "greybox":
+        pred = GreyBoxPredictor(models["greybox"], cfg, name="greybox")
     elif arm == "ltv":
         pred = LinearPredictor(cfg)
     else:
@@ -315,4 +349,4 @@ def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P
 
 
 ARMS = ("nmpc_rk4", "pinc", "blackbox", "ltv")
-ARM_LABELS = dict(nmpc_rk4="NMPC-RK4", pinc="PINC-MPC", blackbox="Black-box-MPC", ltv="LTV-MPC", nmpc_true="NMPC-true")
+ARM_LABELS = dict(nmpc_rk4="NMPC-RK4", pinc="PINC-MPC", blackbox="Black-box-MPC", ltv="LTV-MPC", nmpc_true="NMPC-true", greybox="Grey-box-MPC")

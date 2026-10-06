@@ -64,6 +64,11 @@ def train(cfg: Config, seed: int, run_id: str | None = None, exp: str = "models"
     t_start = time.time()
 
     splits = splits or make_splits(cfg)
+    if getattr(cfg.model, "greybox", False):
+        if cfg.loss.lam != 0:
+            raise ValueError("the grey-box model is trained on data only (loss.lam = 0)")
+        from .greybox import to_residual
+        splits = {k: to_residual(v, cfg) for k, v in splits.items()}
     z_tr, s_tr = _tensors(splits["train"], cfg, dtype)
     z_val, s_val = _tensors(splits["val"], cfg, dtype)
     n_ic = min(tr.n_data, 4000)
