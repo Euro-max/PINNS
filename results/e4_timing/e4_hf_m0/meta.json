@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e4_timing.py --config configs/hf_m0.yaml --run-id e4_hf_m0 --duration 3 --arms pinc,blackbox,nmpc_rk4,nmpc_true --pinc-model results/models/hfm0_n20000_lam0.01_s0 --blackbox-model results/models/hfm0_n20000_lam0_s0",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "102fc616734f407ebd017a215ef5f3c5e7fc275c-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "threads": 1,
+  "timestamp": "2026-10-06T07:43:29",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
