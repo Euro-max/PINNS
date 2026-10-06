@@ -79,3 +79,11 @@ def test_trains_with_the_physics_loss(arch, tmp_path, monkeypatch):
                         "train.val_every": 1, "loss.lam": 0.01, "loss.residual_mask": [1]*6 + [0]*4})
     s = train(cfg, 0, f"arch_{arch}", exp="models", verbose=False)
     assert np.isfinite(s["best_val"]) and PINCNet.load_from(s["run_dir"]).arch == arch
+
+
+def test_anchored_uses_learned_theta(z_batch):
+    cfg = _cfg("anchored", **{"model.learn_theta": True})
+    net = build_model(cfg)
+    a = net(z_batch).numpy()
+    net.log_theta.assign_add(tf.constant([0.3]*5, net.log_theta.dtype))
+    assert np.max(np.abs(net(z_batch).numpy() - a)) > 1e-6          # the anchor moves with the parameters

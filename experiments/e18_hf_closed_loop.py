@@ -8,6 +8,7 @@ plant states.  Controllers:
   data-only, PINC, PINC-theta (M1 only), grey-box   the E17 models trained on N trajectories
   grey-box-qs  the E20 grey-box model with the quasi-steady prior (10 ms RK4)
   distilled    the E19 network taught by the grey-box model
+  A8-*         the E22 prior-anchored networks (data-only, PINC, PINC-theta)
 References: speed sinusoid, speed step, lane change at 20 m/s over 40 m (about 4 m/s^2 peak lateral acceleration),
 the same over 30 m (about 8 m/s^2, inside the training speed range of 5-25 m/s) and the ISO double lane change
 at 12 m/s (about 14 m/s^2 asked for, beyond the grip limit).
@@ -40,7 +41,7 @@ REFS = {"speed_sin": ("speed_sin", {}, 10.0),
         "lane_change_short": ("lane_change", {"refs.slc_length": 30.0}, 6.0),
         "double_lane_change": ("double_lane_change", {}, 7.0)}
 CTRL = {"data-only": "blackbox", "PINC": "pinc", "PINC-theta": "pinc", "grey-box": "greybox", "grey-box-qs": "greybox",
-        "distilled": "blackbox"}
+        "distilled": "blackbox", "A8-data-only": "pinc", "A8-PINC": "pinc", "A8-PINC-theta": "pinc"}
 NMPC = ("NMPC-prior", "NMPC-true")
 LOST_Y = 1.0                      # lateral error above 1 m at any time: off the lane centre by more than a car half-width (lane ~3.5 m)
 METRICS = ("rmse_vx", "rmse_Y", "max_Y", "rmse_psi", "effort", "solve_median", "success_rate")
@@ -85,6 +86,8 @@ def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
                     else:
                         extra = {"grey-box-qs": f"hf{variant}_n{n}_greyboxqs_s{m}",               # E20
                                  "distilled": f"hf{variant}_n{n}_distill2_s{m}"}                   # E19
+                        from experiments.e22_anchored_confirm import a8_arms                      # E22
+                        extra.update({k.replace(" ", "-"): t.format(seed=m) for k, (t, _, _) in a8_arms(variant, n).items()})
                         rid = extra.get(arm) or arms_for(variant, n, lam_star)[arm][0].format(seed=m)
                         net = PINCNet.load_from(os.path.join(RESULTS_DIR, "models", rid))
                         ctrl = make_controller(CTRL[arm], cfg, {CTRL[arm]: net}, ref.Q, ref.P)

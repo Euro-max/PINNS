@@ -231,7 +231,7 @@ class PINCNet(tf.keras.Model):
         tau = z[:, 0:1]
         s0 = z[:, 1:1 + self.n_s]*self.S_x_t
         u = z[:, 1 + self.n_s:]*self.S_u_t
-        anchor = self.system.anchor_tf(s0, u, tau*self.T_t)/self.S_x_t
+        anchor = self.system.anchor_tf(s0, u, tau*self.T_t, self.theta())/self.S_x_t   # learned theta, if any
         return anchor + tau*nn*self.inc_t
 
     def theta(self):

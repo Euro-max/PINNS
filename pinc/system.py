@@ -84,7 +84,7 @@ class Bicycle:
         """One RK4 substep of the network state (the NMPC prediction model)."""
         return plant_tf.rk4_step_tf(s, u, dt, params, tyre)
 
-    def anchor_tf(self, s0, u, t):
+    def anchor_tf(self, s0, u, t, theta=None):
         """Prior-anchored network (E21): one Euler step of the prior from s0 over time t (B, 1); equals s0 at t = 0."""
         return s0 + t*self.f_s_tf(s0, u)
 
@@ -221,11 +221,12 @@ class HighFidelity:
 
     ANCHOR_TAU_W = 0.01      # s, time constant of the wheel-slip part of the anchor
 
-    def anchor_tf(self, s0, u, t):
+    def anchor_tf(self, s0, u, t, theta=None):
         """Prior-anchored network (E21), cheap and non-stiff: one Euler step of the quasi-steady prior for the body
         and actuator states, and an exponential approach (ANCHOR_TAU_W) of the wheel slip to its quasi-steady value.
-        Equals s0 at t = 0; costs one algebraic prior evaluation, no ODE solve."""
-        q, xp = self.prior, self._H.TF
+        Equals s0 at t = 0; costs one algebraic prior evaluation, no ODE solve.  `theta`: learnable prior parameters
+        (prior_hf.THETA) replacing the nominal ones."""
+        q, xp = (dict(self.prior, **theta) if theta else self.prior), self._H.TF
         b0 = s0[:, :6]
         body = b0 + t*self._P.f_s_qs(b0, u, q, xp)
         sig0 = s0[:, 6:]
