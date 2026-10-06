@@ -25,7 +25,8 @@ HORIZONS = (5, 10, 20, 40)
 
 def time_model_call(ctrl, cfg, reps=200):
     import tensorflow as tf
-    s = tf.constant(np.array([[20.0, 0.0, 0.0, 0.0]]), cfg.dtype)
+    sysm = get_system(cfg)
+    s = tf.constant(sysm.from_full(sysm.initial_state([20.0, 0.0, 0.0, 0.0, 0.0, 0.0]))[None], cfg.dtype)
     u = tf.constant(np.array([[500.0, 0.01]]), cfg.dtype)
     pred = ctrl.pred
     if not hasattr(pred, "step"):
