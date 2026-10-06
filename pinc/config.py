@@ -120,6 +120,7 @@ class TrainCfg:
     colloc_log_frac: float = 0.0      # fraction of collocation times drawn log-uniformly in [1e-3 T, T] (fast transients near t = 0)
     distill_from: str = ""            # run id of a trained grey-box model whose predictions label extra training samples
     n_distill: int = 20000            # number of samples it labels (unlabelled states from the collocation pool)
+    distill_mask: list = field(default_factory=list)   # states the teacher labels (1) or leaves to the real data (0); empty: all
 
 
 @dataclass

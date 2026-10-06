@@ -102,3 +102,20 @@ def test_teacher_samples_are_the_greybox_prediction(hf, tmp_path, monkeypatch):
     student = cfg.with_overrides({"model.greybox": False, "train.distill_from": s["run_dir"], "train.n_distill": 50})
     s2 = train(student, 0, "student", exp="models", verbose=False)
     assert np.isfinite(s2["best_val"])
+
+
+def test_data_loss_skips_missing_targets(hf):
+    from pinc.data import scale_inputs
+    from pinc.loss import data_loss
+    net = build_model(hf)
+    d = sample_trajectories(30, 9, hf)
+    z = tf.constant(scale_inputs(d["t"], d["s0"], d["u"], hf))
+    pred = net.predict_physical(d["t"], d["s0"], d["u"]).numpy()
+    masked, filled = d["s"].copy(), d["s"].copy()
+    masked[:, 6:] = np.nan
+    filled[:, 6:] = pred[:, 6:]                     # zero error on those states
+    with tf.GradientTape() as tape:
+        L = data_loss(net, z, tf.constant(masked), hf)
+    g = tape.gradient(L, net.trainable_variables)
+    assert float(L) == pytest.approx(float(data_loss(net, z, tf.constant(filled), hf)), rel=1e-12)
+    assert all(np.all(np.isfinite(x.numpy())) for x in g)

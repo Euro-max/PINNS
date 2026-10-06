@@ -8,6 +8,11 @@ labelled by the grey-box model trained on the same N trajectories and seed (pinc
 teacher_samples; the unlabelled states come from the same pool as the physics loss's collocation points).
 No information beyond the N trajectories and the prior is used.  Batch 1024 for every N, since the labelled
 set is large.  Compared with the E17 arms on the same test sets.
+
+The teacher labels only the body and actuator states; the wheel states come from the real data alone.  A first
+run with all ten states labelled (run ids *_distill_s*, kept) failed: the grey-box model's wheel-state
+predictions are poor (all-state error 0.076 against 0.0055 for the body states at N = 100), the student learned
+them, its validation loss rose from epoch 39 on, and model selection kept that early, undertrained checkpoint.
 """
 import json
 import os
@@ -15,7 +20,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, start, write_text  # noqa: E402
-from experiments.e14_hf_lambda import GROUPS, group_rms  # noqa: E402
+from experiments.e14_hf_lambda import GROUPS, NO_WHEEL, group_rms  # noqa: E402
 from experiments.e15_hf_data import ci_cell, overrides, prewarm  # noqa: E402
 from experiments.e17_hf_compare import SEEDS, cmp_cell, compare  # noqa: E402
 from pinc.config import RESULTS_DIR, ROOT, load_config  # noqa: E402
@@ -37,8 +42,9 @@ def main(argv=None):
     for n in SIZES:
         for seed in SEEDS:
             ov = dict(overrides(n, 0.0, seed, cfg), **{"train.distill_from": f"hf{a.variant}_n{n}_greybox_s{seed}",
-                                                        "train.batch_data": 1024})
-            jobs.append((f"hf{a.variant}_n{n}_distill_s{seed}", seed, ov))
+                                                        "train.batch_data": 1024,
+                                                        "train.distill_mask": str(NO_WHEEL).replace(" ", "")})
+            jobs.append((f"hf{a.variant}_n{n}_distill2_s{seed}", seed, ov))
     prewarm(cfg, jobs)
     run_jobs(jobs, a.slots, cfg_path, a.overrides, cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
 
@@ -57,7 +63,7 @@ def main(argv=None):
     rows, crows, rec = [], [], {}
     for n in SIZES:
         arms = {arm: v for arm, v in e17[str(n)].items() if " vs " not in arm}
-        arms["distilled"] = {m: [fn(f"hf{a.variant}_n{n}_distill_s{s}") for s in SEEDS] for m, (_, fn) in metrics.items()}
+        arms["distilled"] = {m: [fn(f"hf{a.variant}_n{n}_distill2_s{s}") for s in SEEDS] for m, (_, fn) in metrics.items()}
         rec[n] = arms
         for arm, v in arms.items():
             rows.append([n, arm] + [ci_cell(v[m]) for m in metrics])

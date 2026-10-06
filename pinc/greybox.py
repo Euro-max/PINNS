@@ -71,4 +71,7 @@ def teacher_samples(run_id: str, n: int, seed: int, cfg: Config) -> dict:
     u = sample_inputs(n, cfg, rng)
     t = dt*rng.integers(1, int(round(cfg.T/dt)) + 1, size=n)
     s = prior_flow(t, s0, u, cfg) + net.predict_physical(t, s0, u).numpy() - s0
+    mask = list(getattr(cfg.train, "distill_mask", []) or [])
+    if mask:
+        s[:, np.asarray(mask) == 0] = np.nan          # left to the real data (the data loss skips missing targets)
     return dict(t=t.astype(float), s0=s0, u=u, s=s)

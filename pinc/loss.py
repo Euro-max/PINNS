@@ -87,9 +87,13 @@ def physics_residual(model, z, cfg: Config, params=None, method="forward", train
 
 
 def data_loss(model, z, s_target, cfg: Config, training=False):
-    """MSE in scaled units between prediction and integrator target (physical)."""
+    """MSE in scaled units between prediction and integrator target (physical).  Missing targets (NaN, e.g. the
+    states a distillation teacher does not label) count as zero error."""
     S_x = tf.cast(cfg.S_x, z.dtype)
-    return tf.reduce_mean(tf.square(_call(model, z, training) - tf.cast(s_target, z.dtype)/S_x))
+    tgt = tf.cast(s_target, z.dtype)/S_x
+    known = tf.math.is_finite(tgt)
+    err = tf.where(known, _call(model, z, training) - tf.where(known, tgt, 0.0), 0.0)
+    return tf.reduce_mean(tf.square(err))
 
 
 def ic_loss(model, z0, training=False):
