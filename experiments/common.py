@@ -19,7 +19,7 @@ from pinc.runinfo import make_run_dir, manifest_append, save_json, write_meta  #
 from pinc.tfsetup import setup  # noqa: E402
 from pinc.mpc import ARM_LABELS  # noqa: E402
 
-COLORS = dict(nmpc_rk4="#1f77b4", pinc="#d62728", blackbox="#2ca02c", ltv="#9467bd", ref="k", rk4="#1f77b4",
+COLORS = dict(nmpc_rk4="#1f77b4", pinc="#d62728", blackbox="#2ca02c", ltv="#9467bd", nmpc_true="#ff7f0e", ref="k", rk4="#1f77b4",
               linear="#9467bd", truth="k")
 LABELS = dict(ARM_LABELS, rk4="RK4 (dt=0.01)", linear="Linear (LTI @ 20 m/s)", truth="RK4 truth")
 

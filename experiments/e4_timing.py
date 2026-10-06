@@ -18,6 +18,7 @@ from pinc.metrics import solve_time_stats  # noqa: E402
 from pinc.mpc import ARMS, make_controller  # noqa: E402
 from pinc.refs import make_reference  # noqa: E402
 from pinc.sim import simulate  # noqa: E402
+from pinc.system import get_system  # noqa: E402
 
 HORIZONS = (5, 10, 20, 40)
 
@@ -47,22 +48,30 @@ def main(argv=None):
     ap = base_parser(__doc__)
     ap.set_defaults(threads=1)
     ap.add_argument("--duration", type=float, default=5.0)
+    ap.add_argument("--arms", default=None, help="comma list of controllers (default: nmpc_rk4, ltv and the loaded networks)")
+    ap.add_argument("--horizons", default=None, help="comma list of horizons N (default 5,10,20,40)")
+    ap.add_argument("--true-max-n", type=int, default=10, help="largest N for the (expensive) nmpc_true arm")
     a = ap.parse_args(argv)
     cfg, run_dir = start("e4_timing", a)
     import tensorflow as tf
     gpus = tf.config.list_physical_devices("GPU")
     models = load_models(a)
     arms = [x for x in ARMS if x in ("nmpc_rk4", "ltv") or x in models]
-    horizons = HORIZONS[:2] if a.quick else HORIZONS
+    if a.arms:
+        arms = [x for x in a.arms.split(",") if x in ("nmpc_rk4", "ltv", "nmpc_true") or x in models]
+    horizons = tuple(int(n) for n in a.horizons.split(",")) if a.horizons else (HORIZONS[:2] if a.quick else HORIZONS)
     ref = make_reference("lane_change", cfg)
     summary = dict(quick=a.quick, device="cpu-single-thread", gpu=[g.name for g in gpus] or "not available",
                    horizons=list(horizons), solve={}, model_call={})
     for arm in arms:
         summary["solve"][arm] = {}
         for N in horizons:
+            if arm == "nmpc_true" and N > a.true_max_n:
+                continue                                          # seconds per solve: longer horizons take hours
             c = cfg.with_overrides({"mpc.N": N})
             ctrl = make_controller(arm, c, models, ref.Q, ref.P)
-            log = simulate(ctrl, c.params, ref, ref.x0(), a.duration, np.zeros(6), 0, c)
+            x0 = get_system(c).initial_state(ref.x0())
+            log = simulate(ctrl, c.params, ref, x0, a.duration, np.zeros(x0.size), 0, c)
             st = solve_time_stats(log["solve_time"][1:])          # exclude the compile call
             st["nit_mean"] = float(np.mean(log["nit"][1:]))
             st["per_iteration_mean"] = float(np.mean(log["solve_time"][1:]/np.maximum(log["nit"][1:], 1)))
@@ -73,7 +82,7 @@ def main(argv=None):
         summary["model_call"][arm] = time_model_call(make_controller(arm, cfg, models, ref.Q, ref.P), cfg)
     rows = []
     for arm in arms:
-        for N in horizons:
+        for N in [n for n in horizons if n in summary["solve"][arm]]:
             st = summary["solve"][arm][N]
             rows.append([LABELS[arm], N, f"{st['mean']*1e3:.1f}", f"{st['median']*1e3:.1f}", f"{st['p95']*1e3:.1f}",
                          f"{st['nit_mean']:.1f}", f"{st['per_iteration_mean']*1e3:.2f}", f"{st['rmse_Y']:.3f}"])
@@ -84,10 +93,11 @@ def main(argv=None):
                      f"# E4 solve time per MPC step vs horizon (CPU single thread; GPU: {summary['gpu']})\n\n" + t1 + "\n" + t2)
     fig, ax = plt.subplots(figsize=(5, 3.6))
     for arm in arms:
-        med = [summary["solve"][arm][N]["median"]*1e3 for N in horizons]
-        p95 = [summary["solve"][arm][N]["p95"]*1e3 for N in horizons]
-        ax.plot(horizons, med, marker="o", color=COLORS[arm], label=LABELS[arm])
-        ax.plot(horizons, p95, ":", color=COLORS[arm])
+        Ns = [n for n in horizons if n in summary["solve"][arm]]
+        med = [summary["solve"][arm][N]["median"]*1e3 for N in Ns]
+        p95 = [summary["solve"][arm][N]["p95"]*1e3 for N in Ns]
+        ax.plot(Ns, med, marker="o", color=COLORS[arm], label=LABELS[arm])
+        ax.plot(Ns, p95, ":", color=COLORS[arm])
     ax.set(xlabel="horizon N", ylabel="solve time per step [ms] (solid: median, dotted: p95)", yscale="log")
     ax.grid(alpha=0.3, which="both")
     ax.legend(fontsize=8)
