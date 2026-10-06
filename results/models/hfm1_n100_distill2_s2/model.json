@@ -1,0 +1,46 @@
+{
+  "model": {
+    "depth": 8,
+    "width": 64,
+    "activation": "tanh",
+    "hard_ic": true,
+    "residual": "none",
+    "dropout": 0.0,
+    "layernorm": false,
+    "increment_scaling": true,
+    "learn_theta": false,
+    "greybox": false,
+    "greybox_prior": "full"
+  },
+  "S_x": [
+    30.0,
+    1.5,
+    0.6,
+    0.5,
+    6000.0,
+    0.3,
+    0.5,
+    0.5,
+    0.5,
+    0.5
+  ],
+  "S_u": [
+    6000.0,
+    0.3
+  ],
+  "T": 0.1,
+  "dtype": "float64",
+  "S_f": [
+    0.8038,
+    1.096,
+    0.3174,
+    0.1683,
+    18680.0,
+    1.821,
+    103.1,
+    101.6,
+    107.3,
+    107.2
+  ],
+  "theta0": null
+}
