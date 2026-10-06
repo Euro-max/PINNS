@@ -109,3 +109,52 @@ def f_s_true(s, u, p, xp=H.NP):
     zero = 0.0*vx
     x = xp.stack([s[..., 0], s[..., 1], s[..., 2], s[..., 3], zero, zero, w[0], w[1], w[2], w[3], s[..., 4], s[..., 5]], axis=-1)
     return full_rates_to_s(x, H.f(x, u, p, xp), Rw, xp)
+
+
+# ---- quasi-steady variant (non-stiff; for the fast grey-box model) ------------------------------------
+def _qs_forces(s, q, xp):
+    """Per-wheel geometry and forces with the wheel speeds in quasi-steady state (dw/dt = 0, so each tyre's
+    longitudinal force equals its drive torque / R_w).  s: (..., >= 6), only the body and actuator states."""
+    vx, vy, r, F, d = s[..., 0], s[..., 1], s[..., 2], s[..., 4], s[..., 5]
+    lf, lr = q["lf"], q["lr"]
+    s_drive = 0.5*(1.0 + xp.tanh(F/50.0))
+    front = s_drive*q["gamma_f"] + (1.0 - s_drive)*q["beta_f"]
+    Fx_w = [0.5*front*F, 0.5*front*F, 0.5*(1.0 - front)*F, 0.5*(1.0 - front)*F]
+    cd, sd = xp.cos(d), xp.sin(d)
+    out = []
+    for i in range(4):
+        front_wheel = i < 2
+        xi = lf if front_wheel else -lr
+        vxi, vyi = vx, vy + r*xi
+        c, sn = (cd, sd) if front_wheel else (1.0, 0.0)
+        vl = vxi*c + vyi*sn
+        vs = -vxi*sn + vyi*c
+        vden = xp.maximum(xp.abs(vl), H.V_EPS)
+        alpha = -xp.atan(vs/vden)
+        Fy = 0.5*(q["Caf"] if front_wheel else q["Car"])*alpha
+        out.append((xi, c, sn, vl, vden, Fx_w[i], Fy))
+    return out
+
+
+def f_s_qs(s, u, q, xp=H.NP):
+    """Body and actuator dynamics (..., 6) of the prior with quasi-steady wheel speeds: no slip states, so no
+    millisecond time constants (RK4 is stable at 10 ms where the full prior needs 1 ms)."""
+    vx, vy, r = s[..., 0], s[..., 1], s[..., 2]
+    F, d = s[..., 4], s[..., 5]
+    vxs = xp.maximum(vx, H.V_EPS)
+    F_aero = 0.5*q["rho"]*q["Cd"]*q["A"]*vxs**2
+    F_roll = q["Frr"]*xp.tanh(vx/0.1)
+    sumX, sumY, Mz = 0.0, 0.0, 0.0
+    for xi, c, sn, _, _, Fx, Fy in _qs_forces(s, q, xp):
+        bx, by = Fx*c - Fy*sn, Fx*sn + Fy*c
+        sumX, sumY = sumX + bx, sumY + by
+        Mz = Mz + xi*by
+    m = q["m"]
+    return xp.stack([(sumX - F_aero - F_roll)/m + vy*r, sumY/m - vx*r, Mz/q["Iz"], r,
+                     (u[..., 0] - F)/q["tau_F"], (u[..., 1] - d)/q["tau_delta"]], axis=-1)
+
+
+def slip_qs(s, q, xp=H.NP):
+    """Quasi-steady wheel slip velocities (..., 4): kappa_i = Fx_i / C_kappa, sigma_i = kappa_i |v_l| + v_l - vx."""
+    vx = s[..., 0]
+    return xp.stack([Fx/q["C_kappa"]*vden + vl - vx for _, _, _, vl, vden, Fx, _ in _qs_forces(s, q, xp)], axis=-1)

@@ -91,6 +91,7 @@ class ModelCfg:
     increment_scaling: bool = False   # hard IC: s_hat = s0_hat + (t/T) * NN * (S_f*T/S_x), i.e. O(1) network output per channel
     learn_theta: bool = False         # learnable physical parameters of the prior (HF system: Caf, Car, C_kappa, tau_F, tau_delta)
     greybox: bool = False             # the network learns a correction to the prior's own prediction (pinc/greybox.py)
+    greybox_prior: str = "full"       # grey-box prior: full (10 states, 1 ms RK4) | qs (quasi-steady wheels, 10 ms RK4)
 
 
 @dataclass

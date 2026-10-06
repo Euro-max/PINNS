@@ -119,3 +119,31 @@ def test_data_loss_skips_missing_targets(hf):
     g = tape.gradient(L, net.trainable_variables)
     assert float(L) == pytest.approx(float(data_loss(net, z, tf.constant(filled), hf)), rel=1e-12)
     assert all(np.all(np.isfinite(x.numpy())) for x in g)
+
+
+def test_quasi_steady_prior_matches_full_prior(hf):
+    """At the quasi-steady slip the full prior's body and actuator rates equal the quasi-steady prior's, and
+    over one control period the two priors' body states agree closely (the wheel transient is fast)."""
+    from pinc import prior_hf as P
+    from pinc.greybox import prior_flow_qs
+    q = get_system(hf).prior
+    d = sample_trajectories(300, 12, hf)
+    s = d["s0"].copy()
+    s[:, 6:] = P.slip_qs(s, q)
+    np.testing.assert_allclose(P.f_s(s, d["u"], q)[:, :6], P.f_s_qs(s, d["u"], q), rtol=1e-10, atol=1e-8)
+    t = np.full(len(d["t"]), hf.T)
+    e = (prior_flow_qs(t, d["s0"], d["u"], hf) - prior_flow(t, d["s0"], d["u"], hf))/np.asarray(hf.S_x)
+    assert np.sqrt(np.mean(e[:, :4]**2)) < 1e-3          # measured 1.9e-4
+
+
+def test_quasi_steady_greybox_step_is_the_flow_at_T(hf):
+    from pinc.greybox import prior_flow_qs
+    cfg = hf.with_overrides({"model.greybox_prior": "qs"})
+    net = _zero_net(cfg)
+    gb = GreyBoxPredictor(net, cfg)
+    d = sample_trajectories(20, 13, cfg)
+    t = np.full(len(d["t"]), cfg.T)
+    np.testing.assert_allclose(gb.step(tf.constant(d["s0"]), tf.constant(d["u"])).numpy(),
+                               prior_flow_qs(t, d["s0"], d["u"], cfg), rtol=0, atol=1e-12)
+    r = to_residual(d, cfg)                                  # target uses the same prior as the predictor
+    np.testing.assert_allclose(r["s"], d["s"] - prior_flow_qs(d["t"], d["s0"], d["u"], cfg) + d["s0"], atol=1e-12)

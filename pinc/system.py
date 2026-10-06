@@ -205,6 +205,15 @@ class HighFidelity:
         f = lambda z: self._P.f_s(z, u, self.prior, self._H.TF)
         return _rk4_tf(f, s, dt)
 
+    def prior_qs_step_tf(self, s, u, dt, n):
+        """The quasi-steady prior (prior_hf.f_s_qs) over n RK4 steps of dt, from the 10-state s: the body and
+        actuator states are integrated, the wheel slip velocities set to their quasi-steady values."""
+        q, xp = self.prior, self._H.TF
+        b = s[:, :6]
+        for _ in range(n):
+            b = _rk4_tf(lambda z: self._P.f_s_qs(z, u, q, xp), b, dt)
+        return tf.concat([b, self._P.slip_qs(b, q, xp)], axis=1)
+
     def rk4_step_s_true_tf(self, s, u, dt, params=None, tyre=None):
         f = lambda z: self._P.f_s_true(z, u, self.truth, self._H.TF)
         return _rk4_tf(f, s, dt)
@@ -217,7 +226,7 @@ class HighFidelity:
 
 
 def _rk4_tf(f, s, dt):
-    dt = tf.constant(float(dt), s.dtype)
+    dt = dt if tf.is_tensor(dt) else tf.constant(float(dt), s.dtype)     # a tensor dt may vary per sample (B, 1)
     k1 = f(s)
     k2 = f(s + 0.5*dt*k1)
     k3 = f(s + 0.5*dt*k2)

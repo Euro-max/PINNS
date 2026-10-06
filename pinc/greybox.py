@@ -49,9 +49,36 @@ def prior_flow(t, s0, u, cfg: Config, dt: float | None = None, batch: int = 2000
     return out
 
 
+QS_DT = 0.01        # RK4 step of the quasi-steady prior: 10 steps per control period
+
+
+def prior_flow_qs(t, s0, u, cfg: Config) -> np.ndarray:
+    """The quasi-steady prior (prior_hf.f_s_qs; wheel slip set to its quasi-steady value) up to each sample's
+    time t, with ceil(t / QS_DT) equal RK4 steps, so t = T gives exactly the MPC's prediction step."""
+    sysm = get_system(cfg)
+    t, s0, u = np.asarray(t, float), np.asarray(s0, float), np.asarray(u, float)
+    n = np.maximum(1, np.ceil(t/QS_DT - 1e-9).astype(int))
+    out = s0.copy()
+    for k in np.unique(n[t > 0]):
+        sel = (n == k) & (t > 0)
+        dt = tf.constant((t[sel]/k).reshape(-1, 1))
+        out[sel] = sysm.prior_qs_step_tf(tf.constant(s0[sel]), tf.constant(u[sel]), dt, int(k)).numpy()
+    if not np.all(np.isfinite(out)):
+        raise FloatingPointError("non-finite prior prediction")
+    return out
+
+
+def prior_of(kind: str):
+    if kind == "full":
+        return prior_flow
+    if kind == "qs":
+        return prior_flow_qs
+    raise ValueError(f"grey-box prior must be full or qs, got {kind!r}")
+
+
 def to_residual(split: dict, cfg: Config) -> dict:
     """The grey-box training target s(t) - Phi_P(t) + s0 for one data split."""
-    phi = prior_flow(split["t"], split["s0"], split["u"], cfg)
+    phi = prior_of(getattr(cfg.model, "greybox_prior", "full"))(split["t"], split["s0"], split["u"], cfg)
     return dict(split, s=split["s"] - phi + split["s0"])
 
 
@@ -70,7 +97,7 @@ def teacher_samples(run_id: str, n: int, seed: int, cfg: Config) -> dict:
     s0 = sample_box(n, cfg.box_train, rng, cfg, kind="colloc", seed=seed)
     u = sample_inputs(n, cfg, rng)
     t = dt*rng.integers(1, int(round(cfg.T/dt)) + 1, size=n)
-    s = prior_flow(t, s0, u, cfg) + net.predict_physical(t, s0, u).numpy() - s0
+    s = prior_of(getattr(net.mcfg, "greybox_prior", "full"))(t, s0, u, cfg) + net.predict_physical(t, s0, u).numpy() - s0
     mask = list(getattr(cfg.train, "distill_mask", []) or [])
     if mask:
         s[:, np.asarray(mask) == 0] = np.nan          # left to the real data (the data loss skips missing targets)

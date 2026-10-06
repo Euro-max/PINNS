@@ -132,10 +132,21 @@ class GreyBoxPredictor(PINCPredictor):
 
     def __init__(self, model, cfg: Config, name="greybox"):
         super().__init__(model, cfg, name)
-        self.prior = RK4Predictor(cfg, name="greybox_prior", model="prior")
+        self.kind = getattr(model.mcfg, "greybox_prior", "full")
+        if self.kind == "qs":                        # quasi-steady wheels: 10 RK4 steps of 10 ms per period
+            from .greybox import QS_DT
+            self.n_qs = int(round(cfg.T/QS_DT))
+            self.sys = get_system(cfg)
+        else:
+            self.prior = RK4Predictor(cfg, name="greybox_prior", model="prior")
+
+    def prior_step(self, s, u):
+        if self.kind == "qs":
+            return self.sys.prior_qs_step_tf(s, u, self.cfg.T/self.n_qs, self.n_qs)
+        return self.prior.step(s, u)
 
     def step(self, s, u):
-        return self.prior.step(s, u) + super().step(s, u) - s
+        return self.prior_step(s, u) + super().step(s, u) - s
 
     def rollout(self, s0, u, extra=()):
         if getattr(self.cfg.mpc, "loop_rollout", False):
