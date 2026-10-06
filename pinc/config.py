@@ -132,6 +132,7 @@ class MPCCfg:
     maxiter: int = 100
     ftol: float = 1.0e-8
     jit: bool = True                   # XLA-compile the cost+gradient function (same for every predictor)
+    loop_rollout: bool = False         # RK4 predictor horizon as a tf.while_loop (constant graph size; needed for the HF true model)
 
 
 @dataclass

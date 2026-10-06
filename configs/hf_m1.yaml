@@ -50,6 +50,7 @@ mpc:
   maxiter: 100
   ftol: 1.0e-08
   jit: true
+  loop_rollout: true
 sim:
   duration: 10.0
   dt_plant: 0.0005

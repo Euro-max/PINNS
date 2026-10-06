@@ -150,7 +150,8 @@ Study 1 (matched physics, current paper) is **not** retrained with the converged
 | Prior-error map (E13, `e13_v2`) | Heading exact; M0 body states close in gentle driving (0.04–0.09 S_f), 10–50× worse near the grip limit; M1 wrong already in gentle driving (stiffness and actuator lags); **wheel states ~1 S_f even at small slip** (the zero-track prior misses the left/right wheel-speed difference while yawing) |
 | One-step accuracy, M0, N = 20 000 (E14) | The physics term **hurts at every λ**; the wheel residuals cause most of it; without them, body states still lose 2× to data-only |
 | Long-horizon accuracy, same models (E9 on E14) | λ = 1e-2 **without wheel residuals: 50-step body-state error 2.4× lower** than data-only (1.0e-2 vs 2.5e-2), extrapolation slightly better; derivative error not improved (0.29–0.34), so the gain is regularisation of chained prediction rather than learning the true dynamics.  **One seed** |
-| Data efficiency, M0 (E15) | Running: N ∈ {100, 1000, 20 000} × λ ∈ {0, 1e-4, 1e-3, 1e-2} (no wheel residuals) × 3 seeds; λ selected on the **validation** 50-step error |
+| Data efficiency, M0 (E15, 3 seeds; λ selected on the validation 50-step body error) | **N = 100 (λ 1e-2): 1-step 2.9× (3/3 seeds, p = 0.009) and 10-step 7.7× (3/3, p = 0.012) better than data-only**; 50-step 5.1× (2/3, n.s.).  N = 1000 (λ 1e-3): 1.4–2.1× better on every metric but not significant with 3 seeds.  N = 20 000 (λ 1e-2): 1-step 2.6× worse (p = 0.007), 10-step 1.3× better (p = 0.085), 50-step n.s.; the single-seed 2.4× at 20 000 (E9 on E14) does not hold up |
+| NMPC solve time on the HF system (N = 10, one CPU thread, after compilation) | true model 4.7 s, prior 0.48 s per solve (100 RK4 substeps per period for the stiff wheel dynamics); real-time budget 0.1 s.  PINC-MPC needs one network call per step (~10 ms in Study 1) |
 
 Decisions taken overnight (to review):
 - S_f for the HF system = spread of the **prior's** rates (as for the single-track model). The prior's wheel-slip rates spread ~100 m/s² against ~0.5 for the true plant; wheel residuals are dropped (validated in E14) rather than rescaled.
@@ -158,6 +159,8 @@ Decisions taken overnight (to review):
 - Increment scaling capped at 1 (fast wheel states); log-spaced collocation times near t = 0 (half the points).
 
 Open problems:
-- **True-model NMPC compile memory:** one out-of-memory kill at 12.5 GB (21:59) while compiling the true-model controller; a rerun passed in 29 min under load.  Must be fixed before the closed-loop HF experiments (options: no XLA for that arm, fewer substeps with an implicit/semi-implicit wheel update, or a shorter horizon for the reference arm).
+- ~~True-model NMPC compile memory~~ **fixed:** the RK4 predictor unrolled the horizon in Python, so XLA compiled N copies of the 100-substep loop (+2.3 GB per step; out-of-memory at 12.5 GB).  `mpc.loop_rollout` (on in the HF configs, off by default so the single-track results stay bit-identical) makes the horizon a tf.while_loop: compile memory constant at ~6.2 GB for N = 2…10.
+- Closed-loop HF experiments must be reduced in size: at 4.7 s per solve the full E3 design (30 seeds × 4 manoeuvres) costs ~16 h for the true-model arm alone.
+- N = 1000 needs a 5-seed confirmation at the selected λ before any claim (as E10 did for Study 1).
 - Measurement noise for the extra plant states (wheel speeds, drive force, steer angle) is assumed, not cited.
 - On this machine the CPU (20 threads) trains the 10-state models ~3× faster than the GPU; consider `--slots cpu,cpu`.

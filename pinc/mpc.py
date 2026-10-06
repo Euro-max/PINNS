@@ -99,6 +99,18 @@ class RK4Predictor(Predictor):
 
     def rollout(self, s0, u, extra=()):
         s = tf.reshape(s0, (1, -1))
+        if getattr(self.cfg.mpc, "loop_rollout", False):
+            # Horizon as a tf.while_loop: the traced graph holds ONE control step whatever N is.  The Python loop
+            # below copies all N steps (each with its substep loop) into the graph; for the high-fidelity true model
+            # that costs ~2.3 GB of XLA compile memory per step.
+            N = u.shape[0]
+            ta = tf.TensorArray(s.dtype, size=N)
+
+            def body(k, s, ta):
+                s = self.step(s, tf.reshape(u[k], (1, -1)))
+                return k + 1, s, ta.write(k, s[0])
+            _, _, ta = tf.while_loop(lambda k, s, ta: k < N, body, (tf.constant(0), s, ta), maximum_iterations=N)
+            return ta.stack()
         out = []
         for k in range(u.shape[0]):
             s = self.step(s, u[k:k + 1])
