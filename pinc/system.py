@@ -209,9 +209,10 @@ class HighFidelity:
         """The quasi-steady prior (prior_hf.f_s_qs) over n RK4 steps of dt, from the 10-state s: the body and
         actuator states are integrated, the wheel slip velocities set to their quasi-steady values."""
         q, xp = self.prior, self._H.TF
-        b = s[:, :6]
-        for _ in range(n):
-            b = _rk4_tf(lambda z: self._P.f_s_qs(z, u, q, xp), b, dt)
+        f = lambda z: self._P.f_s_qs(z, u, q, xp)
+        # tf.while_loop, not a Python loop: the MPC's compiled graph then holds one substep (much less XLA memory)
+        _, b = tf.while_loop(lambda i, b: i < n, lambda i, b: (i + 1, _rk4_tf(f, b, dt)), (tf.constant(0), s[:, :6]),
+                             maximum_iterations=n)
         return tf.concat([b, self._P.slip_qs(b, q, xp)], axis=1)
 
     def rk4_step_s_true_tf(self, s, u, dt, params=None, tyre=None):
