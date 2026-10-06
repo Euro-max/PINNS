@@ -3,7 +3,6 @@
   "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
   "git": "fe6d64e52c17f392b77b673eda033c0bd5c7ec58-dirty",
   "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
-  "quick": false,
   "seed": 0,
   "timestamp": "2026-10-06T14:35:47",
   "versions": {

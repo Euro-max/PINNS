@@ -57,7 +57,7 @@
   },
   "dtype": "float64",
   "loss": {
-    "lam": 0.01,
+    "lam": 0.0,
     "residual_mask": [
       1,
       1,
@@ -77,7 +77,6 @@
     "depth": 8,
     "dropout": 0.0,
     "greybox": false,
-    "greybox_prior": "full",
     "hard_ic": true,
     "increment_scaling": true,
     "layernorm": false,
@@ -166,7 +165,7 @@
     "colloc": 4,
     "test": 2,
     "test_extrap": 3,
-    "train": 0,
+    "train": 400,
     "val": 1,
     "weights": 5
   },
@@ -208,8 +207,19 @@
     "batch_colloc": 1024,
     "batch_data": 1024,
     "colloc_log_frac": 0.5,
-    "distill_from": "",
-    "distill_mask": [],
+    "distill_from": "hfm0_n100_greybox_s4",
+    "distill_mask": [
+      1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0
+    ],
     "epochs": 300,
     "lbfgs_iters": 2000,
     "log_every": 10,
@@ -217,13 +227,13 @@
     "lr_decay": "none",
     "lr_final_frac": 0.02,
     "n_colloc": 10000,
-    "n_data": 20000,
+    "n_data": 100,
     "n_distill": 20000,
     "n_test": 4000,
     "n_val": 4000,
     "select_on": "total",
-    "steps": 0,
-    "val_every": 1
+    "steps": 6000,
+    "val_every": 20
   },
   "u_max": [
     3000.0,
