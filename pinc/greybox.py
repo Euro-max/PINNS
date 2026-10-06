@@ -53,3 +53,22 @@ def to_residual(split: dict, cfg: Config) -> dict:
     """The grey-box training target s(t) - Phi_P(t) + s0 for one data split."""
     phi = prior_flow(split["t"], split["s0"], split["u"], cfg)
     return dict(split, s=split["s"] - phi + split["s0"])
+
+
+def teacher_samples(run_id: str, n: int, seed: int, cfg: Config) -> dict:
+    """Training samples labelled by a trained grey-box model (a run id or model directory; distillation): states from the collocation pool
+    (the unlabelled states the physics loss also uses), uniform inputs, times on the plant grid in (0, T]."""
+    import os
+    from .config import RESULTS_DIR
+    from .data import sample_box, sample_inputs
+    from .model import PINCNet
+    net = PINCNet.load_from(run_id if os.path.isdir(run_id) else os.path.join(RESULTS_DIR, "models", run_id))
+    if not getattr(net.mcfg, "greybox", False):
+        raise ValueError(f"{run_id} is not a grey-box model")
+    rng = np.random.default_rng(seed)
+    dt = cfg.sim.dt_plant
+    s0 = sample_box(n, cfg.box_train, rng, cfg, kind="colloc", seed=seed)
+    u = sample_inputs(n, cfg, rng)
+    t = dt*rng.integers(1, int(round(cfg.T/dt)) + 1, size=n)
+    s = prior_flow(t, s0, u, cfg) + net.predict_physical(t, s0, u).numpy() - s0
+    return dict(t=t.astype(float), s0=s0, u=u, s=s)

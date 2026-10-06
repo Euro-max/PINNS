@@ -39,6 +39,7 @@ REFS = {"speed_sin": ("speed_sin", {}, 10.0),
         "double_lane_change": ("double_lane_change", {}, 7.0)}
 CTRL = {"data-only": "blackbox", "PINC": "pinc", "PINC-theta": "pinc", "grey-box": "greybox"}
 NMPC = ("NMPC-prior", "NMPC-true")
+LOST_Y = 1.0                      # lateral error above 1 m at any time: off the lane centre by more than a car half-width (lane ~3.5 m)
 METRICS = ("rmse_vx", "rmse_Y", "max_Y", "rmse_psi", "effort", "solve_median", "success_rate")
 
 
@@ -52,6 +53,8 @@ def runs_of(arm, true_seeds):
 
 
 def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
+    import gc
+    import tensorflow as tf
     from pinc.model import PINCNet
     from pinc.mpc import make_controller
     from pinc.refs import make_reference
@@ -93,6 +96,9 @@ def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
                             np.savez_compressed(os.path.join(out_dir, tag + ".npz"), **log)
                         print(f"  {tag}: rmse vx {met['rmse_vx']:.3f} Y {met['rmse_Y']:.3f} max Y {met['max_Y']:.3f} "
                               f"solve {met['solve_median']*1e3:.0f} ms ok {met['success_rate']:.2f}", flush=True)
+                    del ctrl                                          # compiled cost functions hold GBs (grey-box, NMPC)
+                    gc.collect()
+                    tf.keras.backend.clear_session()
 
 
 def report(run_dir, sizes, cfg, a):
@@ -110,8 +116,11 @@ def report(run_dir, sizes, cfg, a):
                 continue
             label = arm if arm in NMPC else f"{arm}, N = {n}"
             st = {k: bootstrap_ci([r[k] for r in g.values()]) for k in METRICS}
-            summ[rname][label] = dict(n_runs=len(g), **st)
-            rows.append([label, len(g)] + [f"{st[k]['mean']:.3g} [{st[k]['lo']:.3g}, {st[k]['hi']:.3g}]" for k in METRICS])
+            lost = sum(r["max_Y"] > LOST_Y for r in g.values())
+            med = {k: float(np.median([r[k] for r in g.values()])) for k in ("rmse_vx", "rmse_Y")}
+            summ[rname][label] = dict(n_runs=len(g), lost=lost, median=med, **st)
+            rows.append([label, len(g), lost, f"{med['rmse_vx']:.3g}", f"{med['rmse_Y']:.3g}"] +
+                        [f"{st[k]['mean']:.3g} [{st[k]['lo']:.3g}, {st[k]['hi']:.3g}]" for k in METRICS])
             for base_arm, base_n in (("NMPC-prior", 0), ("data-only", n)):
                 if arm in NMPC or arm == base_arm:
                     continue
@@ -125,7 +134,7 @@ def report(run_dir, sizes, cfg, a):
                     w = paired_wilcoxon(x, y)
                     cells.append(f"{np.mean(y)/np.mean(x):.2f} ({sum(xi < yi for xi, yi in zip(x, y))}/{len(common)}, p = {w['p']:.2g})")
                 crows.append([label, base_arm] + cells)
-        text += (f"\n## {rname}\n\n" + md_table(["controller", "runs"] + list(METRICS), rows) +
+        text += (f"\n## {rname}\n\n" + md_table(["controller", "runs", f"runs with max Y error > {LOST_Y:g} m", "median rmse_vx", "median rmse_Y"] + list(METRICS), rows) +
                  ("\nError of the second controller divided by the error of the first (above 1: the first is better); "
                   "runs won; paired Wilcoxon p\n\n" + md_table(["controller", "against", "rmse_vx", "rmse_Y", "max_Y"], crows)
                   if crows else ""))

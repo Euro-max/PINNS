@@ -82,3 +82,23 @@ def test_greybox_trains_saves_and_loads(hf, tmp_path, monkeypatch):
     assert s["run_dir"].startswith(str(tmp_path)) and net.mcfg.greybox and np.isfinite(s["best_val"])
     with pytest.raises(ValueError):
         train(cfg.with_overrides({"loss.lam": 0.01}), 0, "gb_bad", exp="models", verbose=False)
+
+
+def test_teacher_samples_are_the_greybox_prediction(hf, tmp_path, monkeypatch):
+    import pinc.runinfo as ri
+    from pinc.greybox import teacher_samples
+    from pinc.train import train
+    monkeypatch.setattr(ri, "RESULTS_DIR", str(tmp_path))
+    cfg = hf.with_overrides({"train.n_data": 200, "train.n_val": 100, "train.n_test": 100, "train.steps": 5,
+                             "train.batch_data": 100, "train.lbfgs_iters": 0, "train.n_colloc": 64})
+    s = train(cfg, 0, "gb_teacher", exp="models", verbose=False)
+    d = teacher_samples(s["run_dir"], 400, 11, cfg)
+    pred = GreyBoxPredictor(PINCNet.load_from(s["run_dir"]), cfg)
+    full = d["t"] == cfg.T                    # at t = T the sample equals one grey-box MPC step (up to the prior step size)
+    if np.any(full):
+        np.testing.assert_allclose(d["s"][full], pred.step(tf.constant(d["s0"][full]), tf.constant(d["u"][full])).numpy(),
+                                   atol=1e-3*np.max(cfg.S_x))
+    assert np.all(np.isfinite(d["s"])) and d["s"].shape == d["s0"].shape
+    student = cfg.with_overrides({"model.greybox": False, "train.distill_from": s["run_dir"], "train.n_distill": 50})
+    s2 = train(student, 0, "student", exp="models", verbose=False)
+    assert np.isfinite(s2["best_val"])

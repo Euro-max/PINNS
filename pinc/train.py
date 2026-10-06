@@ -69,6 +69,10 @@ def train(cfg: Config, seed: int, run_id: str | None = None, exp: str = "models"
             raise ValueError("the grey-box model is trained on data only (loss.lam = 0)")
         from .greybox import to_residual
         splits = {k: to_residual(v, cfg) for k, v in splits.items()}
+    if getattr(tr, "distill_from", ""):
+        from .greybox import teacher_samples
+        extra = teacher_samples(tr.distill_from, tr.n_distill, cfg.seeds.train + 3000, cfg)
+        splits = dict(splits, train={k: np.concatenate([splits["train"][k], extra[k]]) for k in ("t", "s0", "u", "s")})
     z_tr, s_tr = _tensors(splits["train"], cfg, dtype)
     z_val, s_val = _tensors(splits["val"], cfg, dtype)
     n_ic = min(tr.n_data, 4000)
