@@ -84,9 +84,9 @@ class Bicycle:
         """One RK4 substep of the network state (the NMPC prediction model)."""
         return plant_tf.rk4_step_tf(s, u, dt, params, tyre)
 
-    def anchor_tf(self, s0, u, t, theta=None):
+    def anchor_tf(self, s0, u, t, theta=None, **settings):
         """Prior-anchored network (E21): one Euler step of the prior (nominal parameters) from s0 over time t (B, 1);
-        equals s0 at t = 0."""
+        equals s0 at t = 0.  The HF anchor's settings (E24) do not apply here."""
         return s0 + t*self.f_s_tf(s0, u, plant.DEFAULT_PARAMS)
 
     def planar_velocity(self, s):
@@ -222,16 +222,27 @@ class HighFidelity:
 
     ANCHOR_TAU_W = 0.01      # s, time constant of the wheel-slip part of the anchor
 
-    def anchor_tf(self, s0, u, t, theta=None):
+    def anchor_tf(self, s0, u, t, theta=None, tau_w=None, actuator="euler", slip_at="start"):
         """Prior-anchored network (E21), cheap and non-stiff: one Euler step of the quasi-steady prior for the body
-        and actuator states, and an exponential approach (ANCHOR_TAU_W) of the wheel slip to its quasi-steady value.
-        Equals s0 at t = 0; costs one algebraic prior evaluation, no ODE solve.  `theta`: learnable prior parameters
-        (prior_hf.THETA) replacing the nominal ones."""
+        and actuator states, and an exponential approach (time constant tau_w, default ANCHOR_TAU_W; may be a
+        learned tensor) of the wheel slip to its quasi-steady value.  Equals s0 at t = 0; costs one algebraic prior
+        evaluation, no ODE solve.  `theta`: learnable prior parameters (prior_hf.THETA) replacing the nominal ones.
+        Settings (E24): actuator = "exp" uses the exact first-order lag solution for F_act and delta_act;
+        slip_at = "end" takes the quasi-steady slip target at the advanced body and actuator states."""
         q, xp = (dict(self.prior, **theta) if theta else self.prior), self._H.TF
         b0 = s0[:, :6]
         body = b0 + t*self._P.f_s_qs(b0, u, q, xp)
+        if actuator == "exp":
+            lag = [u[:, j:j + 1] + (b0[:, 4 + j:5 + j] - u[:, j:j + 1])*tf.exp(-t/q[k]) for j, k in enumerate(("tau_F", "tau_delta"))]
+            body = tf.concat([body[:, :4]] + lag, axis=1)
+        elif actuator != "euler":
+            raise ValueError(f"anchor actuator must be euler or exp, got {actuator!r}")
+        if slip_at not in ("start", "end"):
+            raise ValueError(f"anchor slip_at must be start or end, got {slip_at!r}")
         sig0 = s0[:, 6:]
-        sig = sig0 + (1.0 - tf.exp(-t/self.ANCHOR_TAU_W))*(self._P.slip_qs(b0, q, xp) - sig0)
+        tau_w = self.ANCHOR_TAU_W if tau_w is None else tau_w
+        target = self._P.slip_qs(body if slip_at == "end" else b0, q, xp)
+        sig = sig0 + (1.0 - tf.exp(-t/tau_w))*(target - sig0)
         return tf.concat([body, sig], axis=1)
 
     def rk4_step_s_true_tf(self, s, u, dt, params=None, tyre=None):

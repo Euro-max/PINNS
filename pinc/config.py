@@ -100,6 +100,11 @@ class ModelCfg:
     n_basis: int = 16                 # deeponet: number of trunk functions
     kan_degree: int = 4               # chebykan: Chebyshev degree of the edge functions
     kan_layers: int = 3               # chebykan: number of KAN layers (hidden width = width)
+    anchor_tau_w: float = 0.01        # anchored: wheel-slip time constant of the anchor [s] (E24)
+    anchor_learn_tau_w: bool = False  # anchored: learn it (log-parametrised, starts at anchor_tau_w)
+    anchor_actuator: str = "euler"    # anchored: actuator states by an Euler step | exp (exact first-order lag)
+    anchor_slip_at: str = "start"     # anchored: quasi-steady slip target at the initial state | end (advanced state)
+    anchor_gain: bool = False         # anchored: learnable per-state gain g, s = s0 + g (anchor - s0) + tau D NN
 
 
 @dataclass

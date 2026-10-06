@@ -98,3 +98,38 @@ def test_anchored_on_the_single_track_model(tmp_path):
     np.testing.assert_allclose(net(z0).numpy(), z[:, 1:5].numpy(), rtol=0, atol=1e-12)
     net.save_to(str(tmp_path))
     np.testing.assert_array_equal(PINCNet.load_from(str(tmp_path))(z).numpy(), net(z).numpy())
+
+
+ANCHOR_SETTINGS = {"tau_w": {"model.anchor_learn_tau_w": True}, "exp": {"model.anchor_actuator": "exp"},
+                   "end": {"model.anchor_slip_at": "end"}, "gain": {"model.anchor_gain": True},
+                   "all": {"model.anchor_learn_tau_w": True, "model.anchor_actuator": "exp", "model.anchor_slip_at": "end",
+                           "model.anchor_gain": True}}
+
+
+@pytest.mark.parametrize("name", ANCHOR_SETTINGS)
+def test_anchor_settings(name, z_batch, tmp_path):
+    from pinc.loss import total_loss
+    from pinc.data import sample_ic, sample_trajectories
+    cfg = _cfg("anchored", **ANCHOR_SETTINGS[name])
+    net = build_model(cfg)
+    n_s = len(cfg.S_x)
+    z0 = tf.concat([tf.zeros_like(z_batch[:, :1]), z_batch[:, 1:]], axis=1)
+    np.testing.assert_allclose(net(z0).numpy(), z_batch[:, 1:1 + n_s].numpy(), rtol=0, atol=1e-12)
+    _, dsdt = forward_and_time_derivative(net, z_batch, cfg.S_x, cfg.T)
+    h = 1e-6
+    zp = tf.concat([z_batch[:, :1] + h, z_batch[:, 1:]], axis=1)
+    zm = tf.concat([z_batch[:, :1] - h, z_batch[:, 1:]], axis=1)
+    fd = (net(zp).numpy() - net(zm).numpy())/(2*h)*np.asarray(cfg.S_x)/cfg.T
+    np.testing.assert_allclose(dsdt.numpy(), fd, rtol=1e-5, atol=1e-6*np.max(np.abs(fd)))
+    new = [v for v in net.trainable_variables if v.name in ("log_tau_w", "anchor_g")]
+    if new:
+        d = sample_trajectories(32, 5, cfg)
+        zd = tf.constant(scale_inputs(d["t"], d["s0"], d["u"], cfg))
+        with tf.GradientTape() as tape:
+            L = total_loss(net, zd, tf.constant(d["s"]), z0, z_batch, cfg)["total"]
+        for v, g in zip(new, tape.gradient(L, new)):
+            assert g is not None and np.all(np.isfinite(g.numpy())) and np.any(g.numpy() != 0), v.name
+    for v in new:
+        v.assign(v + 0.1)
+    net.save_to(str(tmp_path))
+    np.testing.assert_array_equal(PINCNet.load_from(str(tmp_path))(z_batch).numpy(), net(z_batch).numpy())

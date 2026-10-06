@@ -130,6 +130,12 @@ class PINCNet(tf.keras.Model):
             self.trunk = [tf.keras.layers.Dense(32, activation="tanh", kernel_initializer=init, dtype=dtype, name="tr0"),
                           tf.keras.layers.Dense(32, activation="tanh", kernel_initializer=init, dtype=dtype, name="tr1"),
                           tf.keras.layers.Dense(p, activation=None, kernel_initializer=init, dtype=dtype, name="tr2")]
+        elif a == "anchored":                       # E24 settings; none by default (the E21 network unchanged)
+            if getattr(mcfg, "anchor_learn_tau_w", False):
+                self.log_tau_w = self.add_weight(shape=(), dtype=dtype, name="log_tau_w", trainable=True,
+                                                 initializer=tf.keras.initializers.Constant(np.log(float(mcfg.anchor_tau_w))))
+            if getattr(mcfg, "anchor_gain", False):
+                self.anchor_g = self.add_weight(shape=(self.n_s,), initializer="ones", dtype=dtype, name="anchor_g", trainable=True)
         elif a == "chebykan":
             deg = int(mcfg.kan_degree)
             dims = [n_in] + [w]*(int(mcfg.kan_layers) - 1) + [self.n_s]
@@ -231,7 +237,14 @@ class PINCNet(tf.keras.Model):
         tau = z[:, 0:1]
         s0 = z[:, 1:1 + self.n_s]*self.S_x_t
         u = z[:, 1 + self.n_s:]*self.S_u_t
-        anchor = self.system.anchor_tf(s0, u, tau*self.T_t, self.theta())/self.S_x_t   # learned theta, if any
+        mc, kw = self.mcfg, {}
+        if self.system.name != "bicycle":
+            kw = dict(tau_w=tf.exp(self.log_tau_w) if getattr(mc, "anchor_learn_tau_w", False) else float(getattr(mc, "anchor_tau_w", 0.01)),
+                      actuator=getattr(mc, "anchor_actuator", "euler"), slip_at=getattr(mc, "anchor_slip_at", "start"))
+        anchor = self.system.anchor_tf(s0, u, tau*self.T_t, self.theta(), **kw)/self.S_x_t   # learned theta, if any
+        if getattr(mc, "anchor_gain", False):
+            s0s = z[:, 1:1 + self.n_s]
+            anchor = s0s + self.anchor_g*(anchor - s0s)
         return anchor + tau*nn*self.inc_t
 
     def theta(self):
