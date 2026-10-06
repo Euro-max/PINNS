@@ -87,3 +87,14 @@ def test_anchored_uses_learned_theta(z_batch):
     a = net(z_batch).numpy()
     net.log_theta.assign_add(tf.constant([0.3]*5, net.log_theta.dtype))
     assert np.max(np.abs(net(z_batch).numpy() - a)) > 1e-6          # the anchor moves with the parameters
+
+
+def test_anchored_on_the_single_track_model(tmp_path):
+    cfg = load_config(None, dict(SMALL, **{"model.arch": "anchored"}))
+    net = build_model(cfg)
+    c = sample_collocation(16, 2, cfg)
+    z = tf.constant(scale_inputs(c["t"], c["s0"], c["u"], cfg))
+    z0 = tf.concat([tf.zeros_like(z[:, :1]), z[:, 1:]], axis=1)
+    np.testing.assert_allclose(net(z0).numpy(), z[:, 1:5].numpy(), rtol=0, atol=1e-12)
+    net.save_to(str(tmp_path))
+    np.testing.assert_array_equal(PINCNet.load_from(str(tmp_path))(z).numpy(), net(z).numpy())

@@ -85,8 +85,9 @@ class Bicycle:
         return plant_tf.rk4_step_tf(s, u, dt, params, tyre)
 
     def anchor_tf(self, s0, u, t, theta=None):
-        """Prior-anchored network (E21): one Euler step of the prior from s0 over time t (B, 1); equals s0 at t = 0."""
-        return s0 + t*self.f_s_tf(s0, u)
+        """Prior-anchored network (E21): one Euler step of the prior (nominal parameters) from s0 over time t (B, 1);
+        equals s0 at t = 0."""
+        return s0 + t*self.f_s_tf(s0, u, plant.DEFAULT_PARAMS)
 
     def planar_velocity(self, s):
         """(vx, vy, psi) of the network state, for integrating X, Y in the MPC."""
