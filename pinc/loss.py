@@ -79,6 +79,9 @@ def physics_residual(model, z, cfg: Config, params=None, method="forward", train
     s_hat, dsdt = forward_and_time_derivative(model, z, S_x, cfg.T, method, training)
     s = s_hat*S_x
     u = z[:, 1 + n_s:]*S_u
+    theta = model.theta() if hasattr(model, "theta") else {}
+    if theta:                                    # learnable prior parameters (plan decision 2d)
+        params = dict(params, **theta)
     f = get_system(cfg).f_s_tf(s, u, params, cfg.sim.tyre)
     return (dsdt - f)/S_f
 

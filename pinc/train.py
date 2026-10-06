@@ -190,7 +190,8 @@ def train(cfg: Config, seed: int, run_id: str | None = None, exp: str = "models"
                    val=v, test=test_metrics(net, splits["test"], cfg),
                    test_extrap=test_metrics(net, splits["test_extrap"], cfg),
                    n_params=int(sum(int(np.prod(x.shape)) for x in net.trainable_variables)),
-                   train_seconds=time.time() - t_start, lam=cfg.loss.lam, n_data=tr.n_data)
+                   train_seconds=time.time() - t_start, lam=cfg.loss.lam, n_data=tr.n_data,
+                   theta={k: float(v) for k, v in net.theta().items()} or None)
     save_json(summary, os.path.join(run_dir, "summary.json"))
     write_meta(run_dir, cfg, seed, dict(run_id=run_id, exp=exp))
     manifest_append([os.path.join(run_dir, "summary.json"), os.path.join(run_dir, "weights.weights.h5")])

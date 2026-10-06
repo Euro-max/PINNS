@@ -20,8 +20,21 @@ from .config import Config, ModelCfg
 
 
 class PINCNet(tf.keras.Model):
-    def __init__(self, mcfg: ModelCfg, S_x, S_u, T: float, dtype: str = "float64", S_f=None, **kw):
+    def __init__(self, mcfg: ModelCfg, S_x, S_u, T: float, dtype: str = "float64", S_f=None, theta0=None, **kw):
         super().__init__(**kw)
+        # learnable prior parameters (plan decision 2d): log-parametrised (positive), trained with the weights;
+        # used only by the physics residual (pinc/loss.py)
+        self.theta0 = dict(theta0) if theta0 else None
+        if getattr(mcfg, "learn_theta", False):
+            if not self.theta0:
+                raise ValueError("learn_theta needs the nominal parameters theta0")
+            self.theta_names = tuple(sorted(self.theta0))
+            init = np.log([self.theta0[k] for k in self.theta_names])
+            # add_weight, not tf.Variable: Keras must track it, or the optimisers never update it and it is not saved
+            self.log_theta = self.add_weight(shape=(len(init),), initializer=tf.keras.initializers.Constant(init),
+                                             dtype=dtype, name="log_theta", trainable=True)
+        else:
+            self.theta_names, self.log_theta = (), None
         self._S_f = None if S_f is None else np.asarray(S_f, dtype=float)
         self.mcfg = mcfg
         self._S_x = np.asarray(S_x, dtype=float)
@@ -86,6 +99,13 @@ class PINCNet(tf.keras.Model):
             return z[:, 1:1 + self.n_s] + z[:, 0:1]*nn*self.inc_t
         return nn
 
+    def theta(self):
+        """Current prior parameters {name: tensor} (empty unless learn_theta)."""
+        if self.log_theta is None:
+            return {}
+        v = tf.exp(self.log_theta)
+        return {k: v[i] for i, k in enumerate(self.theta_names)}
+
     # ---- unit helpers ------------------------------------------------
     def physical(self, s_hat):
         return s_hat*self.S_x_t
@@ -103,7 +123,10 @@ class PINCNet(tf.keras.Model):
     def save_to(self, d: str):
         os.makedirs(d, exist_ok=True)
         meta = dict(model=self.mcfg.__dict__, S_x=self._S_x.tolist(), S_u=self._S_u.tolist(),
-                    T=self._T, dtype=self._dtype_str, S_f=None if self._S_f is None else self._S_f.tolist())
+                    T=self._T, dtype=self._dtype_str, S_f=None if self._S_f is None else self._S_f.tolist(),
+                    theta0=self.theta0)
+        if self.log_theta is not None:
+            meta["theta"] = {k: float(v) for k, v in self.theta().items()}
         with open(os.path.join(d, "model.json"), "w") as fh:
             json.dump(meta, fh, indent=2)
         self.save_weights(os.path.join(d, "weights.weights.h5"))
@@ -112,7 +135,8 @@ class PINCNet(tf.keras.Model):
     def load_from(cls, d: str) -> "PINCNet":
         with open(os.path.join(d, "model.json")) as fh:
             meta = json.load(fh)
-        net = cls(ModelCfg(**meta["model"]), meta["S_x"], meta["S_u"], meta["T"], meta["dtype"], S_f=meta.get("S_f"))
+        net = cls(ModelCfg(**meta["model"]), meta["S_x"], meta["S_u"], meta["T"], meta["dtype"], S_f=meta.get("S_f"),
+                  theta0=meta.get("theta0"))
         net.load_weights(os.path.join(d, "weights.weights.h5"))
         return net
 
@@ -129,4 +153,11 @@ class PINCNet(tf.keras.Model):
 
 
 def build_model(cfg: Config) -> PINCNet:
-    return PINCNet(cfg.model, cfg.S_x, cfg.S_u, cfg.T, cfg.dtype, S_f=cfg.S_f)
+    theta0 = None
+    if getattr(cfg.model, "learn_theta", False):
+        from .system import get_system
+        sysm = get_system(cfg)
+        if not hasattr(sysm, "theta_nominal"):
+            raise ValueError(f"system {cfg.system!r} has no learnable prior parameters")
+        theta0 = sysm.theta_nominal()
+    return PINCNet(cfg.model, cfg.S_x, cfg.S_u, cfg.T, cfg.dtype, S_f=cfg.S_f, theta0=theta0)

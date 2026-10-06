@@ -187,8 +187,19 @@ class HighFidelity:
         return self._driving(n, base + int(seed if seed is not None else rng.integers(0, 2**31 - 1)), box)
 
     # ---- physics prior and MPC glue (TensorFlow) ------------------------------------------
+    def theta_nominal(self):
+        """Nominal values of the prior's learnable parameters (prior_hf.THETA)."""
+        return {k: float(self.prior[k]) for k in self._P.THETA}
+
     def f_s_tf(self, s, u, params=None, tyre=None):
-        return self._P.f_s(s, u, self.prior, self._H.TF)
+        """Prior dynamics; entries of `params` named in prior_hf.THETA (e.g. learnable tensors) override the
+        nominal values, everything else in `params` is ignored."""
+        q = self.prior
+        if params:
+            over = {k: v for k, v in params.items() if k in self._P.THETA}
+            if over:
+                q = dict(self.prior, **over)
+        return self._P.f_s(s, u, q, self._H.TF)
 
     def rk4_step_s_tf(self, s, u, dt, params=None, tyre=None):
         f = lambda z: self._P.f_s(z, u, self.prior, self._H.TF)
