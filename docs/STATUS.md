@@ -151,6 +151,8 @@ Study 1 (matched physics, current paper) is **not** retrained with the converged
 | One-step accuracy, M0, N = 20 000 (E14) | The physics term **hurts at every λ**; the wheel residuals cause most of it; without them, body states still lose 2× to data-only |
 | Long-horizon accuracy, same models (E9 on E14) | λ = 1e-2 **without wheel residuals: 50-step body-state error 2.4× lower** than data-only (1.0e-2 vs 2.5e-2), extrapolation slightly better; derivative error not improved (0.29–0.34), so the gain is regularisation of chained prediction rather than learning the true dynamics.  **One seed** |
 | Data efficiency, M0 (E15, 3 seeds; λ selected on the validation 50-step body error) | **N = 100 (λ 1e-2): 1-step 2.9× (3/3 seeds, p = 0.009) and 10-step 7.7× (3/3, p = 0.012) better than data-only**; 50-step 5.1× (2/3, n.s.).  N = 1000 (λ 1e-3): 1.4–2.1× better on every metric but not significant with 3 seeds.  N = 20 000 (λ 1e-2): 1-step 2.6× worse (p = 0.007), 10-step 1.3× better (p = 0.085), 50-step n.s.; the single-seed 2.4× at 20 000 (E9 on E14) does not hold up |
+| Data efficiency, M1 (E15, wrong stiffness and actuator lags) | Validation selects **λ = 0 at every N**: with fixed wrong parameters the physics term does not help; at λ = 0.01 the 10-step error is similar at N = 100 (0.22 vs 0.26) and 5–6× worse at N = 1000 / 20 000 |
+| Learnable prior parameters, M1 (E16, λ = 1e-3, 3 seeds) | 10-step body error: N = 100 learned 0.14 vs nominal 0.47 vs data-only 0.26 (beats data-only 1.9×); N = 1000 learned 0.028 vs nominal 0.048 vs data-only 0.013 (still behind data-only).  Recovered: actuator lags almost exactly (τ_F 0.200–0.206 s, true 0.20; τ_δ 0.078–0.085 s, true 0.08), rear cornering stiffness 83–84 % of the gap, front 36–47 %; the slip stiffness (true = nominal) drifts to ~1/5 because nothing constrains it once the wheel residuals are masked |
 | NMPC solve time on the HF system (N = 10, one CPU thread, after compilation) | true model 4.7 s, prior 0.48 s per solve (100 RK4 substeps per period for the stiff wheel dynamics); real-time budget 0.1 s.  PINC-MPC needs one network call per step (~10 ms in Study 1) |
 
 Decisions taken overnight (to review):
@@ -163,4 +165,5 @@ Open problems:
 - Closed-loop HF experiments must be reduced in size: at 4.7 s per solve the full E3 design (30 seeds × 4 manoeuvres) costs ~16 h for the true-model arm alone.
 - N = 1000 needs a 5-seed confirmation at the selected λ before any claim (as E10 did for Study 1).
 - Measurement noise for the extra plant states (wheel speeds, drive force, steer angle) is assumed, not cited.
-- On this machine the CPU (20 threads) trains the 10-state models ~3× faster than the GPU; consider `--slots cpu,cpu`.
+- On this machine the CPU (20 threads) trains the 10-state models faster than the GPU.  Two GPU slots + one CPU slot (E16): GPU jobs took 490–530 s each when sharing the GPU against ~390 s alone, i.e. ~1.5× GPU throughput; adopted for small-N batches, not tested on large-N jobs.
+- Report for the faculty (Claude Docs, 2026-10-06) summarises Study 1 and the Study 2 results above.
