@@ -165,5 +165,5 @@ Open problems:
 - Closed-loop HF experiments must be reduced in size: at 4.7 s per solve the full E3 design (30 seeds × 4 manoeuvres) costs ~16 h for the true-model arm alone.
 - N = 1000 needs a 5-seed confirmation at the selected λ before any claim (as E10 did for Study 1).
 - Measurement noise for the extra plant states (wheel speeds, drive force, steer angle) is assumed, not cited.
-- On this machine the CPU (20 threads) trains the 10-state models faster than the GPU.  Two GPU slots + one CPU slot (E16): GPU jobs took 490–530 s each when sharing the GPU against ~390 s alone, i.e. ~1.5× GPU throughput; adopted for small-N batches, not tested on large-N jobs.
+- On this machine the CPU (20 threads) trains the 10-state models faster than the GPU.  Two GPU slots + one CPU slot (E16): GPU jobs took 490–530 s each when sharing the GPU against 340–390 s alone, i.e. ~1.4× GPU throughput; adopted for small-N batches, not tested on large-N jobs.
 - Report for the faculty (Claude Docs, 2026-10-06) summarises Study 1 and the Study 2 results above.
