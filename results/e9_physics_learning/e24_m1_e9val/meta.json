@@ -1,11 +1,11 @@
 {
-  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e24_anchor_tuning.py --variant m0 --run-id e24_m0 --slots gpu",
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e24_anchor_tuning.py --variant m1 --run-id e24_m1 --slots gpu,gpu,cpu",
   "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
   "git": "ff18919782e6cf544ebde1a3a9ce933035d3fb18-dirty",
   "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
   "quick": false,
   "seed": 0,
-  "timestamp": "2026-10-07T03:24:36",
+  "timestamp": "2026-10-07T03:16:05",
   "versions": {
     "matplotlib": "3.11.2",
     "numpy": "2.5.3",

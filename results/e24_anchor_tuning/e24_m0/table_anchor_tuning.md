@@ -40,3 +40,14 @@
 | 1000 | T1 learned wheel time constant | 37.4 / 41.0 / 41.4 | - |
 | 1000 | T4 anchor gain | - | 0.72, 0.75, 0.54, 0.90, 0.77, 0.80, 0.36, 0.38, 0.27, 0.20 |
 | 1000 | T5 all | 21.2 / 24.3 / 23.5 | 0.67, 0.71, 0.52, 0.84, 1.00, 0.96, 1.07, 1.06, 1.04, 1.00 |
+
+## MPC solve time at N = 10 (one CPU thread, seed-0 model at N = 1000)
+
+| setting | median [ms] | per iteration [ms] | per iteration vs A8 |
+|---|---|---|---|
+| A8 (untuned anchor) | 11.8 | 0.864 | 1.00 |
+| T1 learned wheel time constant | 12.2 | 0.925 | 1.07 |
+| T2 exact actuator lag | 12.2 | 0.943 | 1.09 |
+| T3 slip target at the end | 12.1 | 0.885 | 1.02 |
+| T4 anchor gain | 12.1 | 0.875 | 1.01 |
+| T5 all | 12.3 | 0.951 | 1.10 (> 10 % slower) |

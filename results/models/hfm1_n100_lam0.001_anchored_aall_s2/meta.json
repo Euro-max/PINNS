@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 2 --run-id hfm1_n100_lam0.001_anchored_aall_s2 --exp models --config /home/elgondy_wsl/repo/PINNS/configs/hf_m1.yaml --set train.n_data=100 --set train.steps=6000 --set train.batch_data=100 --set train.val_every=20 --set loss.lam=0.001 --set seeds.train=200 --set loss.residual_mask=[1,1,1,1,1,1,0,0,0,0] --set model.arch=anchored --set model.anchor_learn_tau_w=true --set model.anchor_actuator=exp --set model.anchor_slip_at=end --set model.anchor_gain=true --threads 4",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "ff18919782e6cf544ebde1a3a9ce933035d3fb18-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "hfm1_n100_lam0.001_anchored_aall_s2",
+  "seed": 2,
+  "timestamp": "2026-10-07T03:01:22",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
