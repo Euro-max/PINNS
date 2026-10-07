@@ -62,13 +62,17 @@ def main(argv=None):
     ap = base_parser(__doc__)
     add_slot_args(ap)
     ap.add_argument("--variant", default="m0")
+    ap.add_argument("--lambdas", default=",".join(f"{x:g}" for x in LAMBDAS), help="comma list of physics weights")
+    ap.add_argument("--sizes", default=",".join(str(x) for x in SIZES), help="comma list of training-set sizes")
     a = ap.parse_args(argv)
+    lams = tuple(float(x) for x in a.lambdas.split(","))
+    sizes = tuple(int(x) for x in a.sizes.split(","))
     cfg_path = os.path.join(ROOT, "configs", f"hf_{a.variant}.yaml")
     a.config = cfg_path
     _, run_dir = start("e15_hf_data", a)
     cfg = load_config(cfg_path, a.overrides)
     jobs = [(f"hf{a.variant}_n{n}_lam{lam:g}_s{seed}", seed, overrides(n, lam, seed, cfg))
-            for n in SIZES for lam in LAMBDAS for seed in SEEDS]
+            for n in sizes for lam in lams for seed in SEEDS]
     print("  prewarming the driving-state cache", flush=True)
     prewarm(cfg, jobs)
     run_jobs(jobs, a.slots, cfg_path, a.overrides, cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
@@ -83,8 +87,8 @@ def main(argv=None):
         with open(os.path.join(RESULTS_DIR, "e9_physics_learning", e9_id, "summary.json")) as fh:
             ev[split] = json.load(fh)["models"]
     rec, rows, best, best_onestep = {}, [], {}, {}
-    for n in SIZES:
-        for lam in LAMBDAS:
+    for n in sizes:
+        for lam in lams:
             runs = [summary(f"hf{a.variant}_n{n}_lam{lam:g}_s{seed}") for seed in SEEDS]
             rids = [f"hf{a.variant}_n{n}_lam{lam:g}_s{seed}" for seed in SEEDS]
             r = dict(val_data=[s["val"]["data"] for s in runs],
@@ -97,12 +101,12 @@ def main(argv=None):
             rec[f"{n}_{lam:g}"] = r
             rows.append([n, f"{lam:g}", ci_cell(r["val_data"]), ci_cell(r["h50_val"])] + [ci_cell(r["test"][g]) for g in GROUPS] +
                         [ci_cell(r["h10_test"]), ci_cell(r["h50_test"]), ci_cell(r["h50_extrap"])])
-        best[n] = min(LAMBDAS, key=lambda lam: np.mean(rec[f"{n}_{lam:g}"]["h50_val"]))
-        best_onestep[n] = min(LAMBDAS, key=lambda lam: np.mean(rec[f"{n}_{lam:g}"]["val_data"]))
+        best[n] = min(lams, key=lambda lam: np.mean(rec[f"{n}_{lam:g}"]["h50_val"]))
+        best_onestep[n] = min(lams, key=lambda lam: np.mean(rec[f"{n}_{lam:g}"]["val_data"]))
     text = (f"# E15 data efficiency on HF-{a.variant.upper()} (lambda > 0 without wheel residuals; mean [95% CI] over "
             f"{len(SEEDS)} seeds)\n\nselected lambda (validation 50-step body error): " +
-            ", ".join(f"N = {n}: {best[n]:g}" for n in SIZES) + "; by validation data loss instead: " +
-            ", ".join(f"N = {n}: {best_onestep[n]:g}" for n in SIZES) + "\n\n" +
+            ", ".join(f"N = {n}: {best[n]:g}" for n in sizes) + "; by validation data loss instead: " +
+            ", ".join(f"N = {n}: {best_onestep[n]:g}" for n in sizes) + "\n\n" +
             md_table(["N", "lambda", "val data", "val 50-step body"] + [f"test 1-step {g}" for g in GROUPS] +
                      ["test 10-step body", "test 50-step body", "extrap 50-step body"], rows))
     art = write_text(os.path.join(run_dir, "table_hf_data.md"), text)

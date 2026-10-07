@@ -83,13 +83,13 @@ def part_study1(a, run_dir):
 
 
 def part_lambda(a, run_dir):
-    cfg_path = os.path.join(ROOT, "configs", "hf_m0.yaml")
+    cfg_path = os.path.join(ROOT, "configs", f"hf_{a.variant}.yaml")
     cfg = load_config(cfg_path, a.overrides)
     seeds = SEEDS[:3]
     jobs, plan = [], {}
-    for n in (100, 1000):
-        for lam in (1e-4, 1e-3, 1e-2):
-            rs = [f"hfm0_n{n}_lam{lam:g}_anchored_s{k}" for k in seeds]
+    for n in (int(x) for x in a.sizes.split(",")):
+        for lam in (float(x) for x in a.lambdas.split(",")):
+            rs = [f"hf{a.variant}_n{n}_lam{lam:g}_anchored_s{k}" for k in seeds]
             plan.setdefault(n, {})[f"A8 lambda {lam:g}"] = rs
             jobs += [(r, k, dict(overrides(n, lam, k, cfg), **A8)) for r, k in zip(rs, seeds)]
     prewarm(cfg, jobs)
@@ -103,7 +103,7 @@ def part_lambda(a, run_dir):
               h50=lambda r: ev["test"][r]["horizon_body"]["in_domain"]["50"]["mean"])
     rec = {n: {arm: {m: [fn[m](r) for r in rs] for m in labels} for arm, rs in arms.items()} for n, arms in plan.items()}
     best = {n: min(arms, key=lambda arm: np.mean(rec[n][arm]["h50_val"])) for n, arms in plan.items()}
-    text = table(rec, [], labels, "# E23 physics weight for the prior-anchored network, HF-M0 (mean [95% CI] over 3 seeds)\n\n"
+    text = table(rec, [], labels, f"# E23 physics weight for the prior-anchored network, HF-{a.variant.upper()} (mean [95% CI] over 3 seeds)\n\n"
                  "selected on the validation 50-step body error: " + ", ".join(f"N = {n}: {b}" for n, b in best.items()))
     return cfg, dict(rec, best=best), text
 
@@ -140,11 +140,14 @@ def main(argv=None):
     ap = base_parser(__doc__)
     add_slot_args(ap)
     ap.add_argument("--part", required=True, choices=("study1", "lambda", "n20k"))
+    ap.add_argument("--variant", default="m0", help="lambda part: HF variant")
+    ap.add_argument("--sizes", default="100,1000", help="lambda part: training-set sizes")
+    ap.add_argument("--lambdas", default="0.0001,0.001,0.01", help="lambda part: physics weights")
     a = ap.parse_args(argv)
     if a.part == "study1":
         a.config = DEFAULT_CONFIG_PATH
     else:
-        a.config = os.path.join(ROOT, "configs", "hf_m0.yaml")
+        a.config = os.path.join(ROOT, "configs", f"hf_{a.variant if a.part == 'lambda' else 'm0'}.yaml")
     _, run_dir = start("e23_anchored_extend", a)
     cfg, rec, text = dict(study1=part_study1, **{"lambda": part_lambda}, n20k=part_n20k)[a.part](a, run_dir)
     art = write_text(os.path.join(run_dir, f"table_{a.part}.md"), text)
