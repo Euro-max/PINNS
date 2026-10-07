@@ -182,6 +182,8 @@ class RefsCfg:
     slc_start: float = 20.0
     dlc_speed: float = 12.0
     dlc_offset: float = 3.5
+    iso_speed: float = 14.0           # smooth path through the ISO 3888-2 cone layout (refs.IsoLaneChange)
+    iso_car_width: float = 1.8        # vehicle width that sets the ISO 3888-2 lane widths [m]
 
 
 @dataclass

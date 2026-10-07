@@ -6,6 +6,8 @@ nominal initial state x0.
 """
 from __future__ import annotations
 
+import functools
+
 import numpy as np
 
 from .config import Config
@@ -131,7 +133,80 @@ class DoubleLaneChange(Reference):
         return np.arctan(self.path(self.X(t))[1])
 
 
-REFERENCES = {r.name: r for r in (SpeedSinusoid, SpeedStep, SingleLaneChange, DoubleLaneChange)}
+def iso3888_lanes(W):
+    """ISO 3888-2:2011 obstacle-avoidance track for a vehicle of width W, in the reference frame of IsoLaneChange
+    (X from the track entry, Y = 0 on the centreline of lane 1, Y positive to the left).  Section lengths
+    12 / 13.5 / 11 / 12.5 / 12 m; lane widths 1.1 W + 0.25, W + 1 and max(1.3 W + 0.25, 3) m; a clear gap of 1 m
+    between the left edge of lanes 1 and 5 and the right edge of lane 3 (Table 1 and Figures 1 and 3 of the standard).
+    Returns [(X_start, X_end, lane centre Y, slack)], slack = half the lane width left over by the vehicle."""
+    b1, b3, b5 = 1.1*W + 0.25, W + 1.0, max(1.3*W + 0.25, 3.0)
+    y1, y3, y5 = -b1/2, 1.0 + b3/2, -b5/2                  # y = 0 on the left edge of lanes 1 and 5
+    return [(0.0, 12.0, 0.0, (b1 - W)/2), (25.5, 36.5, y3 - y1, (b3 - W)/2), (49.0, 61.0, y5 - y1, (b5 - W)/2)]
+
+
+@functools.lru_cache(maxsize=None)
+def iso3888_path(W=1.8):
+    """Smooth centreline through the ISO 3888-2 lanes: Y = A1 sig((X - c1)/w1) - A2 sig((X - c2)/w2), with the
+    positions c and widths w of the two logistic transitions chosen to minimise the peak path curvature while the
+    whole vehicle stays inside every lane.  Deterministic (fixed starting grid).  Returns (A1, c1, w1, A2, c2, w2)."""
+    from scipy.optimize import minimize
+    lanes = iso3888_lanes(W)
+    A1, A2 = lanes[1][2], lanes[1][2] - lanes[2][2]
+    X = np.linspace(-10.0, 75.0, 17001)
+    sig = lambda z: 1.0/(1.0 + np.exp(-z))
+    path = lambda p: A1*sig((X - p[0])/p[1]) - A2*sig((X - p[2])/p[3])
+
+    def peak_curvature(p):
+        Y = path(p)
+        d = np.gradient(Y, X)
+        return float(np.max(np.abs(np.gradient(d, X)/(1 + d**2)**1.5)))
+
+    def margins(p):
+        Y = path(p)
+        return np.array([sl - np.max(np.abs(Y[(X >= a) & (X <= b)] - c)) for a, b, c, sl in lanes])
+    best = None
+    for c1 in np.linspace(15.0, 22.0, 8):
+        for c2 in np.linspace(39.0, 46.0, 8):
+            r = minimize(peak_curvature, [c1, 2.5, c2, 2.5], method="SLSQP", constraints=[{"type": "ineq", "fun": margins}],
+                         bounds=[(12.0, 25.5), (0.5, 8.0), (36.5, 49.0), (0.5, 8.0)])
+            if r.success and np.all(margins(r.x) >= -1e-6) and (best is None or r.fun < best.fun):
+                best = r
+    c1, w1, c2, w2 = best.x
+    return (A1, c1, w1, A2, c2, w2)
+
+
+class IsoLaneChange(Reference):
+    """Obstacle-avoidance manoeuvre through the ISO 3888-2:2011 cone layout (iso3888_lanes) on a smooth path
+    (iso3888_path), driven at constant `refs.iso_speed`; the track entry is `run_in` metres after the start."""
+    name = "iso_lane_change"
+    run_in = 10.0
+
+    def __init__(self, cfg):
+        super().__init__(cfg)
+        self.v0 = float(self.rc.iso_speed)
+        self.p = iso3888_path(float(self.rc.iso_car_width))
+
+    def path(self, X):
+        A1, c1, w1, A2, c2, w2 = self.p
+        x = np.asarray(X, float) - self.run_in
+        s1, s2 = 1.0/(1.0 + np.exp(-(x - c1)/w1)), 1.0/(1.0 + np.exp(-(x - c2)/w2))
+        Y = A1*s1 - A2*s2
+        dY = A1*s1*(1 - s1)/w1 - A2*s2*(1 - s2)/w2
+        return Y, dY
+
+    def Y(self, t):
+        return self.path(self.X(t))[0]
+
+    def psi(self, t):
+        return np.arctan(self.path(self.X(t))[1])
+
+    def peak_lateral_acceleration(self):
+        X = np.linspace(0.0, self.run_in + 75.0, 40001)
+        _, d = self.path(X)
+        return float(np.max(np.abs(np.gradient(d, X)/(1 + d**2)**1.5))*self.v0**2)
+
+
+REFERENCES = {r.name: r for r in (SpeedSinusoid, SpeedStep, SingleLaneChange, DoubleLaneChange, IsoLaneChange)}
 
 
 def make_reference(name: str, cfg: Config) -> Reference:
