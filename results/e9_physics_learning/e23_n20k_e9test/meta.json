@@ -1,0 +1,17 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e23_anchored_extend.py --part n20k --run-id e23_n20k --slots gpu,gpu,cpu",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "617098d70b03c355438757aed5f6c3852c70a7d9-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "timestamp": "2026-10-07T01:08:04",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
