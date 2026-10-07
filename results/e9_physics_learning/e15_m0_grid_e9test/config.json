@@ -138,6 +138,8 @@
   "refs": {
     "dlc_offset": 3.5,
     "dlc_speed": 12.0,
+    "iso_car_width": 1.8,
+    "iso_speed": 14.0,
     "sin_amp": 2.0,
     "sin_omega": 0.5,
     "slc_length": 40.0,
