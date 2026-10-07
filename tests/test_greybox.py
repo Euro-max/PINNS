@@ -147,3 +147,20 @@ def test_quasi_steady_greybox_step_is_the_flow_at_T(hf):
                                prior_flow_qs(t, d["s0"], d["u"], cfg), rtol=0, atol=1e-12)
     r = to_residual(d, cfg)                                  # target uses the same prior as the predictor
     np.testing.assert_allclose(r["s"], d["s"] - prior_flow_qs(d["t"], d["s0"], d["u"], cfg) + d["s0"], atol=1e-12)
+
+
+def test_nmpc_with_the_quasi_steady_prior(hf):
+    """NMPC-qs predicts exactly what the quasi-steady grey-box model predicts with a zero correction, and solves."""
+    from pinc.mpc import MPC, make_controller
+    from pinc.refs import make_reference
+    cfg = hf.with_overrides({"model.greybox_prior": "qs"})
+    nmpc = RK4Predictor(cfg, model="qs")
+    gb = GreyBoxPredictor(_zero_net(cfg), cfg)
+    d = sample_trajectories(10, 14, cfg)
+    s0, u = tf.constant(d["s0"]), tf.constant(d["u"])
+    np.testing.assert_allclose(nmpc.step(s0, u).numpy(), gb.step(s0, u).numpy(), rtol=0, atol=1e-12)
+    ref = make_reference("lane_change", cfg)
+    ctrl = make_controller("nmpc_qs", cfg, {}, ref.Q, ref.P)
+    x0 = get_system(cfg).initial_state(ref.x0())
+    u0, info = ctrl(0.0, x0, ref)
+    assert np.all(np.isfinite(u0)) and np.isfinite(info["cost"])

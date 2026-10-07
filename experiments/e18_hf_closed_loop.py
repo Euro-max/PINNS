@@ -41,19 +41,25 @@ REFS = {"speed_sin": ("speed_sin", {}, 10.0),
         "lane_change_short": ("lane_change", {"refs.slc_length": 30.0}, 6.0),
         "double_lane_change": ("double_lane_change", {}, 7.0)}
 CTRL = {"data-only": "blackbox", "PINC": "pinc", "PINC-theta": "pinc", "grey-box": "greybox", "grey-box-qs": "greybox",
+        "PINC-ablation": "pinc", "anchored data-only": "pinc", "anchored PINC": "pinc",
         "distilled": "blackbox", "A8-data-only": "pinc", "A8-PINC": "pinc", "A8-PINC-theta": "pinc"}
-NMPC = ("NMPC-prior", "NMPC-true")
+NMPC = ("NMPC-prior", "NMPC-true", "NMPC-qs", "NMPC-exact", "LTV")
+NMPC_CTRL = {"NMPC-prior": "nmpc_rk4", "NMPC-true": "nmpc_true", "NMPC-qs": "nmpc_qs", "NMPC-exact": "nmpc_rk4", "LTV": "ltv"}
+MODEL_SEEDS = list(SEEDS)              # training seeds of the learned controllers (--model-seeds)
+REGISTRY = None                        # {N: {arm: run id template}} from E28 / E27 (--registry)
 LOST_Y = 1.0                      # lateral error above 1 m at any time: off the lane centre by more than a car half-width (lane ~3.5 m)
 METRICS = ("rmse_vx", "rmse_Y", "max_Y", "rmse_psi", "effort", "solve_median", "success_rate")
 
 
 def runs_of(arm, true_seeds):
-    """[(model seed or None, noise seed)]"""
-    if arm == "NMPC-prior":
-        return [(None, k) for k in range(2*len(SEEDS))]
+    """[(model seed or None, noise seed)].  The i-th training seed runs with noise seeds i and i + 5, so every
+    learned controller meets the same noise seeds 0-9 as the NMPC controllers, whatever its training seeds."""
+    k = len(MODEL_SEEDS)
     if arm == "NMPC-true":
-        return [(None, k) for k in range(true_seeds)]
-    return [(m, k) for m in SEEDS for k in (m, m + len(SEEDS))]
+        return [(None, j) for j in range(true_seeds)]
+    if arm in NMPC:
+        return [(None, j) for j in range(2*k)]
+    return [(m, j) for i, m in enumerate(MODEL_SEEDS) for j in (i, i + k)]
 
 
 def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
@@ -64,8 +70,10 @@ def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
     from pinc.refs import make_reference
     from pinc.sim import closed_loop_metrics, perturb_x0, simulate
     from pinc.system import get_system
-    with open(os.path.join(RESULTS_DIR, "e15_hf_data", "e15_m0", "summary.json")) as fh:
-        lam_star = {int(k): v for k, v in json.load(fh)["best_lambda"].items()}
+    lam_star = None
+    if REGISTRY is None:
+        with open(os.path.join(RESULTS_DIR, "e15_hf_data", "e15_m0", "summary.json")) as fh:
+            lam_star = {int(k): v for k, v in json.load(fh)["best_lambda"].items()}
     out_dir = os.path.join(run_dir, "runs")
     os.makedirs(out_dir, exist_ok=True)
     for rname in refs:
@@ -82,7 +90,10 @@ def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
                     by_model.setdefault(m, []).append(k)
                 for m, ks in by_model.items():
                     if arm in NMPC:
-                        ctrl = make_controller("nmpc_rk4" if arm == "NMPC-prior" else "nmpc_true", cfg, {}, ref.Q, ref.P)
+                        ctrl = make_controller(NMPC_CTRL[arm], cfg, {}, ref.Q, ref.P)
+                    elif REGISTRY is not None:
+                        net = PINCNet.load_from(os.path.join(RESULTS_DIR, "models", REGISTRY[str(n)][arm].format(seed=m)))
+                        ctrl = make_controller(CTRL[arm], cfg, {CTRL[arm]: net}, ref.Q, ref.P)
                     else:
                         extra = {"grey-box-qs": f"hf{variant}_n{n}_greyboxqs_s{m}",               # E20
                                  "distilled": f"hf{variant}_n{n}_distill2_s{m}"}                   # E19
@@ -95,7 +106,8 @@ def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
                     for k in ks:
                         rng = np.random.default_rng(10_000 + k)
                         x0 = perturb_x0(x_start, cfg.sim.x0_sigma, rng)
-                        log = simulate(ctrl, None, ref, x0, duration, cfg.sim.noise_sigma, k, cfg)
+                        log = simulate(ctrl, cfg.params if variant == "st" else None, ref, x0, duration, cfg.sim.noise_sigma, k,
+                                       cfg, cfg.sim.tyre)
                         met = closed_loop_metrics(log, cfg, ref)
                         tag = f"{rname}_{arm}_N{n}_m{m}_k{k}"
                         with open(os.path.join(out_dir, tag + ".json"), "w") as fh:
@@ -159,8 +171,17 @@ def main(argv=None):
     ap.add_argument("--refs", default=",".join(REFS))
     ap.add_argument("--true-seeds", type=int, default=2)
     ap.add_argument("--report", action="store_true", help="only build the tables from the saved runs")
+    ap.add_argument("--registry", default=None, help="registry.json (E28 / E27) mapping N and arm to run ids")
+    ap.add_argument("--model-seeds", default=None, help="training seeds of the learned controllers (default 0-4)")
     a = ap.parse_args(argv)
-    a.config = os.path.join(ROOT, "configs", f"hf_{a.variant}.yaml")
+    global REGISTRY, MODEL_SEEDS
+    if a.registry:
+        with open(a.registry) as fh:
+            reg = json.load(fh)
+        REGISTRY, MODEL_SEEDS = reg["arms"], list(reg["seeds"])
+    if a.model_seeds:
+        MODEL_SEEDS = [int(x) for x in a.model_seeds.split(",")]
+    a.config = os.path.join(ROOT, "configs", "default.yaml" if a.variant == "st" else f"hf_{a.variant}.yaml")
     if a.threads is None:
         a.threads = 1
     for v in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
@@ -169,7 +190,11 @@ def main(argv=None):
     cfg = load_config(a.config, a.overrides)
     sizes = [int(x) for x in a.sizes.split(",")]
     if not a.report:
-        default = ["NMPC-prior", "NMPC-true"] + list(arms_for(a.variant, sizes[0], {s: 0.0 for s in sizes}))
+        if REGISTRY is not None:
+            default = (["NMPC-exact", "LTV"] if a.variant == "st" else ["NMPC-prior", "NMPC-qs", "NMPC-true"]) + \
+                      sorted({arm for v in REGISTRY.values() for arm in v})
+        else:
+            default = ["NMPC-prior", "NMPC-true"] + list(arms_for(a.variant, sizes[0], {s: 0.0 for s in sizes}))
         arms = a.arms.split(",") if a.arms else default
         run_part(cfg, a.variant, sizes, arms, a.refs.split(","), a.true_seeds, run_dir)
     else:

@@ -59,7 +59,7 @@ def main(argv=None):
     models = load_models(a)
     arms = [x for x in ARMS if x in ("nmpc_rk4", "ltv") or x in models]
     if a.arms:
-        arms = [x for x in a.arms.split(",") if x in ("nmpc_rk4", "ltv", "nmpc_true") or x in models]
+        arms = [x for x in a.arms.split(",") if x in ("nmpc_rk4", "ltv", "nmpc_true", "nmpc_qs") or x in models]
     horizons = tuple(int(n) for n in a.horizons.split(",")) if a.horizons else (HORIZONS[:2] if a.quick else HORIZONS)
     ref = make_reference("lane_change", cfg)
     summary = dict(quick=a.quick, device="cpu-single-thread", gpu=[g.name for g in gpus] or "not available",

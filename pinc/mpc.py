@@ -82,13 +82,18 @@ class RK4Predictor(Predictor):
         self.dt, self.T = cfg.mpc.dt_pred, cfg.T
         self.tyre = "linear"
         self.sys = get_system(cfg)
-        if model not in ("prior", "true"):
+        if model not in ("prior", "true", "qs"):
             raise ValueError(model)
-        self._step = self.sys.rk4_step_s_tf if model == "prior" else self.sys.rk4_step_s_true_tf
+        self.model = model
+        self._step = self.sys.rk4_step_s_tf if model == "prior" else (self.sys.rk4_step_s_true_tf if model == "true" else None)
 
     def step(self, s, u):
         """One control period of RK4 substeps as a tf.while_loop (keeps the
         traced graph small so XLA compiles in seconds, not minutes)."""
+        if self.model == "qs":                     # quasi-steady prior (non-stiff): 10 ms RK4 steps, slip set algebraically
+            from .greybox import QS_DT
+            n = int(round(self.T/QS_DT))
+            return self.sys.prior_qs_step_tf(s, u, self.T/n, n)
         n = int(round(self.T/self.dt))
         p, dt, tyre = self.params, self.dt, self.tyre
 
@@ -340,12 +345,14 @@ class MPC:
 
 # ---------------------------------------------------------------------------
 def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P=None) -> MPC:
-    """arms: nmpc_rk4 | nmpc_true | pinc | blackbox | greybox | ltv.  `models` maps arm -> loaded PINCNet."""
+    """arms: nmpc_rk4 | nmpc_true | nmpc_qs | pinc | blackbox | greybox | ltv.  `models` maps arm -> loaded PINCNet."""
     models = models or {}
     if arm == "nmpc_rk4":
         pred = RK4Predictor(cfg)
     elif arm == "nmpc_true":
         pred = RK4Predictor(cfg, name="nmpc_true", model="true")
+    elif arm == "nmpc_qs":
+        pred = RK4Predictor(cfg, name="nmpc_qs", model="qs")
     elif arm == "pinc":
         pred = PINCPredictor(models["pinc"], cfg, name="pinc")
     elif arm == "blackbox":
@@ -360,4 +367,4 @@ def make_controller(arm: str, cfg: Config, models: dict | None = None, Q=None, P
 
 
 ARMS = ("nmpc_rk4", "pinc", "blackbox", "ltv")
-ARM_LABELS = dict(nmpc_rk4="NMPC-RK4", pinc="PINC-MPC", blackbox="Black-box-MPC", ltv="LTV-MPC", nmpc_true="NMPC-true", greybox="Grey-box-MPC")
+ARM_LABELS = dict(nmpc_rk4="NMPC-RK4", pinc="PINC-MPC", blackbox="Black-box-MPC", ltv="LTV-MPC", nmpc_true="NMPC-true", greybox="Grey-box-MPC", nmpc_qs="NMPC-qs")
