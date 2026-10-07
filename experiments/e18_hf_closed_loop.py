@@ -83,6 +83,12 @@ def run_part(cfg0, variant, sizes, arms, refs, true_seeds, run_dir):
         x_start = get_system(cfg).initial_state(ref.x0())
         for arm in arms:
             for n in (sizes if arm not in NMPC else [0]):
+                if REGISTRY is not None and arm not in NMPC:
+                    reg_n = REGISTRY.get(str(n), {})
+                    if arm not in reg_n:
+                        continue                      # e.g. PINC-ablation exists only where the selected lambda is 0
+                    if next(a_ for a_, t in reg_n.items() if t == reg_n[arm]) != arm:
+                        continue                      # same model as an earlier arm (PINC with lambda = 0 is data-only)
                 todo = [(m, k) for m, k in runs_of(arm, true_seeds)
                         if not os.path.exists(os.path.join(out_dir, f"{rname}_{arm}_N{n}_m{m}_k{k}.json"))]
                 by_model = {}
