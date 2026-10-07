@@ -16,3 +16,4 @@ results/cache/
 # exported copies of the progress report (the source is the shared document)
 docs/*_progress_report.pdf
 scripts/style_check.py
+scripts/make_paper_study2.py
