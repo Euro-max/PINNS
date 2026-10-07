@@ -1,0 +1,17 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e26_model_checks.py --run-id e26 --threads 2",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "360b73e945b145684b8792653f681007d2550655",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "timestamp": "2026-10-07T08:52:13",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}

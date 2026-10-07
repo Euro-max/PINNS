@@ -1469,3 +1469,5 @@ artifact | command | git hash
 `results/e24_anchor_tuning/e24_m0/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e24_anchor_tuning.py --variant m0 --run-id e24_m0 --slots gpu` | `ff18919782e6cf544ebde1a3a9ce933035d3fb18-dirty`
 `results/e25_prior_accuracy/e25/table_prior_accuracy.md` | `python /home/elgondy_wsl/repo/PINNS/experiments/e25_prior_accuracy.py --run-id e25` | `868649b30ef520d99a0c76a09e21302e4efb2ffd`
 `results/e25_prior_accuracy/e25/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e25_prior_accuracy.py --run-id e25` | `868649b30ef520d99a0c76a09e21302e4efb2ffd`
+`results/e26_model_checks/e26/table_model_checks.md` | `python /home/elgondy_wsl/repo/PINNS/experiments/e26_model_checks.py --run-id e26 --threads 2` | `360b73e945b145684b8792653f681007d2550655`
+`results/e26_model_checks/e26/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e26_model_checks.py --run-id e26 --threads 2` | `360b73e945b145684b8792653f681007d2550655`
