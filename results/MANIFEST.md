@@ -1467,3 +1467,5 @@ artifact | command | git hash
 `results/e9_physics_learning/e24_m0_e9test/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e24_anchor_tuning.py --variant m0 --run-id e24_m0 --slots gpu` | `ff18919782e6cf544ebde1a3a9ce933035d3fb18-dirty`
 `results/e24_anchor_tuning/e24_m0/table_anchor_tuning.md` | `python /home/elgondy_wsl/repo/PINNS/experiments/e24_anchor_tuning.py --variant m0 --run-id e24_m0 --slots gpu` | `ff18919782e6cf544ebde1a3a9ce933035d3fb18-dirty`
 `results/e24_anchor_tuning/e24_m0/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e24_anchor_tuning.py --variant m0 --run-id e24_m0 --slots gpu` | `ff18919782e6cf544ebde1a3a9ce933035d3fb18-dirty`
+`results/e25_prior_accuracy/e25/table_prior_accuracy.md` | `python /home/elgondy_wsl/repo/PINNS/experiments/e25_prior_accuracy.py --run-id e25` | `868649b30ef520d99a0c76a09e21302e4efb2ffd`
+`results/e25_prior_accuracy/e25/summary.json` | `python /home/elgondy_wsl/repo/PINNS/experiments/e25_prior_accuracy.py --run-id e25` | `868649b30ef520d99a0c76a09e21302e4efb2ffd`
