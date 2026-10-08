@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 6 --run-id hfm1_n100_lam0_anchored_s6 --exp models --config /home/elgondy_wsl/repo/PINNS/configs/hf_m1.yaml --set train.n_data=100 --set train.steps=6000 --set train.batch_data=100 --set train.val_every=20 --set loss.lam=0.0 --set seeds.train=600 --set model.arch=anchored --threads 4",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "2167cb83c95a2489040ba509b99814aa6c83e746-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "hfm1_n100_lam0_anchored_s6",
+  "seed": 6,
+  "timestamp": "2026-10-08T00:22:31",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
