@@ -1,0 +1,18 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/pinc/train.py --seed 9 --run-id s1v3_plain_n1000_lam0_s9 --exp models --config /home/elgondy_wsl/repo/PINNS/configs/default.yaml --set train.n_data=1000 --set train.steps=6000 --set train.lbfgs_iters=2000 --set train.batch_data=1000 --set train.val_every=20 --set loss.lam=0.0 --set seeds.train=900 --set model.increment_scaling=true --set train.log_every=1000 --threads 16",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "4440fdd87b8d32fff71c5ef814ea9ae44adcf389-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "s1v3_plain_n1000_lam0_s9",
+  "seed": 9,
+  "timestamp": "2026-10-08T12:42:23",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "command": "python pinc/train.py --seed 5 --run-id s1v3_anchored_n20000_lam0_s5 --exp models --config configs/default.yaml --set train.n_data=20000 --set train.steps=6000 --set train.lbfgs_iters=2000 --set train.batch_data=1024 --set train.val_every=1 --set loss.lam=0.0 --set seeds.train=500 --set model.increment_scaling=true --set train.log_every=1000 --set model.arch=anchored --threads 16",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "ae59e7d1745ef4808b77f97f09e0cccbb5abd6aa",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "s1v3_anchored_n20000_lam0_s5",
+  "seed": 5,
+  "timestamp": "2026-10-08T15:48:44",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}

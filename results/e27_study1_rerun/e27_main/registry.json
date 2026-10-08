@@ -1,0 +1,50 @@
+{
+ "variant": "st",
+ "seeds": [
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "lambdas": {
+  "plain": {
+   "100": 0.1,
+   "1000": 0.1,
+   "10000": 0.1,
+   "20000": 0.1
+  },
+  "anchored": {
+   "100": 1.0,
+   "1000": 1.0,
+   "10000": 10.0,
+   "20000": 10.0
+  }
+ },
+ "arms": {
+  "100": {
+   "data-only": "s1v3_plain_n100_lam0_s{seed}",
+   "PINC": "s1v3_plain_n100_lam0.1_s{seed}",
+   "anchored data-only": "s1v3_anchored_n100_lam0_s{seed}",
+   "anchored PINC": "s1v3_anchored_n100_lam1_s{seed}"
+  },
+  "1000": {
+   "data-only": "s1v3_plain_n1000_lam0_s{seed}",
+   "PINC": "s1v3_plain_n1000_lam0.1_s{seed}",
+   "anchored data-only": "s1v3_anchored_n1000_lam0_s{seed}",
+   "anchored PINC": "s1v3_anchored_n1000_lam1_s{seed}"
+  },
+  "10000": {
+   "data-only": "s1v3_plain_n10000_lam0_s{seed}",
+   "PINC": "s1v3_plain_n10000_lam0.1_s{seed}",
+   "anchored data-only": "s1v3_anchored_n10000_lam0_s{seed}",
+   "anchored PINC": "s1v3_anchored_n10000_lam10_s{seed}"
+  },
+  "20000": {
+   "data-only": "s1v3_plain_n20000_lam0_s{seed}",
+   "PINC": "s1v3_plain_n20000_lam0.1_s{seed}",
+   "anchored data-only": "s1v3_anchored_n20000_lam0_s{seed}",
+   "anchored PINC": "s1v3_anchored_n20000_lam10_s{seed}"
+  }
+ }
+}
