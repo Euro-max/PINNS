@@ -10,6 +10,8 @@ import os
 import sys
 import time
 
+os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")   # CPU only: the timing is defined on one CPU thread (a visible GPU slows the many small ops)
+
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
