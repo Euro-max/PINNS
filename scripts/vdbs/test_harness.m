@@ -1,0 +1,14 @@
+root = 'C:\Users\elgondy\AppData\Local\Temp\claude_vdbs'; cd(root);
+addpath(genpath(fullfile(root,'vehconfig'))); addpath(genpath(fullfile(root,'common'))); addpath(genpath(fullfile(root,'pv14')));
+mdl = 'pinc_vdbs14'; load_system(mdl);
+v0 = 15; Rw = 0.316843923235597;
+u = [0 200 0; 2 200 0.03; 4 200 0.03];
+in = Simulink.SimulationInput(mdl);
+V = get_param(mdl,'ModelWorkspace').getVariable('VEH'); V.InitialLongVel = v0;
+in = in.setVariable('VEH', V, 'Workspace', mdl).setVariable('omega0', v0/Rw, 'Workspace', mdl);
+in = in.setVariable('ucmd', u, 'Workspace', mdl).setVariable('F0', 200, 'Workspace', mdl).setVariable('d0', 0, 'Workspace', mdl);
+in = in.setModelParameter('StopTime','4','OutputOption','SpecifiedOutputTimes','OutputTimes','0:0.1:4');
+tic; out = sim(in); el = toc;
+S = vdbs_extract(out); S.elapsed = el; S.u = u;
+save(fullfile(root,'test_harness.mat'), '-struct', 'S');
+fprintf('sim took %.1f s, %d samples\n', el, numel(S.t));

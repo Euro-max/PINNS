@@ -1,0 +1,8 @@
+{
+  "n_ic": 100,
+  "part": "inputs1",
+  "warm_steps": [
+    5,
+    30
+  ]
+}
