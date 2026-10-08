@@ -40,7 +40,7 @@ REFS = {"speed_sin": ("speed_sin", {}, 10.0),
         "speed_step": ("speed_step", {}, 10.0),
         "lane_change": ("lane_change", {}, 6.0),
         "lane_change_short": ("lane_change", {"refs.slc_length": 30.0}, 6.0),
-        "double_lane_change": ("iso_lane_change", {}, 6.5)}          # smooth path through the ISO 3888-2 cones
+        "iso_lane_change": ("iso_lane_change", {}, 6.5)}             # smooth path through the ISO 3888-2 cones
 CTRL = {"data-only": "blackbox", "PINC": "pinc", "PINC-theta": "pinc", "grey-box": "greybox", "grey-box-qs": "greybox",
         "PINC-ablation": "pinc", "anchored data-only": "pinc", "anchored PINC": "pinc",
         "distilled": "blackbox", "A8-data-only": "pinc", "A8-PINC": "pinc", "A8-PINC-theta": "pinc"}

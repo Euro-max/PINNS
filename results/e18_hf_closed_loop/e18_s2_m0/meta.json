@@ -1,10 +1,11 @@
 {
+  "code_diff": "diff --git a/experiments/e18_hf_closed_loop.py b/experiments/e18_hf_closed_loop.py\nindex fe9180a..b082a6b 100644\n--- a/experiments/e18_hf_closed_loop.py\n+++ b/experiments/e18_hf_closed_loop.py\n@@ -40,7 +40,7 @@ REFS = {\"speed_sin\": (\"speed_sin\", {}, 10.0),\n         \"speed_step\": (\"speed_step\", {}, 10.0),\n         \"lane_change\": (\"lane_change\", {}, 6.0),\n         \"lane_change_short\": (\"lane_change\", {\"refs.slc_length\": 30.0}, 6.0),\n-        \"double_lane_change\": (\"iso_lane_change\", {}, 6.5)}          # smooth path through the ISO 3888-2 cones\n+        \"iso_lane_change\": (\"iso_lane_change\", {}, 6.5)}             # smooth path through the ISO 3888-2 cones\n CTRL = {\"data-only\": \"blackbox\", \"PINC\": \"pinc\", \"PINC-theta\": \"pinc\", \"grey-box\": \"greybox\", \"grey-box-qs\": \"greybox\",\n         \"PINC-ablation\": \"pinc\", \"anchored data-only\": \"pinc\", \"anchored PINC\": \"pinc\",\n         \"distilled\": \"blackbox\", \"A8-data-only\": \"pinc\", \"A8-PINC\": \"pinc\", \"A8-PINC-theta\": \"pinc\"}\n",
   "command": "python experiments/e18_hf_closed_loop.py --variant m0 --registry results/e28_main_fresh/e28_m0/registry.json --sizes 100,1000 --report --run-id e18_s2_m0",
   "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
-  "git": "d4fb1bec7dac2f65c88441953df8969b7b820b12",
+  "git": "e4f8999773260a41b7849679e4a8a48d6606fff4-dirty",
   "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
   "seed": 0,
-  "timestamp": "2026-10-08T16:41:39",
+  "timestamp": "2026-10-08T19:30:10",
   "versions": {
     "matplotlib": "3.11.2",
     "numpy": "2.5.3",

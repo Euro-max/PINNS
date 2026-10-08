@@ -225,6 +225,7 @@
     "batch_colloc": 1024,
     "batch_data": 1024,
     "colloc_log_frac": 0.5,
+    "data_file": "",
     "distill_from": "",
     "distill_mask": [],
     "epochs": 300,
