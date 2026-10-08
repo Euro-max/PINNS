@@ -7,7 +7,6 @@ results/logs/
 poster.pptx
 scripts/update_poster_pptx.py
 scripts/make_poster_assets.py
-scripts/make_paper_tables.py
 scripts/build_poster.py
 LATEX/
 data/tyre/
@@ -16,4 +15,3 @@ results/cache/
 # exported copies of the progress report (the source is the shared document)
 docs/*_progress_report.pdf
 scripts/style_check.py
-scripts/make_paper_study2.py

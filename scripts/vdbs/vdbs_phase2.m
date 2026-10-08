@@ -15,7 +15,9 @@ for i = 1:n
           'OutputTimes', ['[' sprintf('%.10g ', tw + T*(1:K)) ']']);
     try
       S = vdbs_extract(sim(in));
-      X(i,j,:,:) = [S.vx S.vy S.r S.psi S.X S.Y S.omega S.Fact S.Dact S.Re];
+      Z = [S.vx S.vy S.r S.psi S.X S.Y S.omega S.Fact S.Dact S.Re];
+      if i == 1 && j == 1, fprintf('first run: %d rows, t(1) %.3f, t(end) %.3f (start %.3f)\n', size(Z,1), S.t(1), S.t(end), tw); end
+      X(i,j,:,:) = Z(end - K + 1:end, :);       % a run from a saved state also reports its start time
     catch e
       fprintf('ic %d seq %d failed: %s\n', i, j, e.message);
     end

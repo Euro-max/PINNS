@@ -11,10 +11,23 @@ import sys
 from .config import Config, RESULTS_DIR, ROOT
 
 
+CODE_PATHS = ("pinc", "experiments", "configs", "scripts")   # what a run's result depends on (results/ is not code)
+
+
+def code_diff() -> str:
+    """Uncommitted changes (staged or not) to the code paths, as a patch; empty when they are clean."""
+    try:
+        return subprocess.check_output(["git", "diff", "HEAD", "--", *CODE_PATHS], cwd=ROOT,
+                                       stderr=subprocess.DEVNULL).decode(errors="replace")
+    except Exception:
+        return ""
+
+
 def git_hash() -> str:
+    """HEAD, with "-dirty" when the code paths differ from it (changes to results/ do not count)."""
     try:
         h = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, stderr=subprocess.DEVNULL).decode().strip()
-        dirty = subprocess.call(["git", "diff", "--quiet"], cwd=ROOT) != 0
+        dirty = subprocess.call(["git", "diff", "HEAD", "--quiet", "--", *CODE_PATHS], cwd=ROOT) != 0
         return h + ("-dirty" if dirty else "")
     except Exception:
         return "unknown"
@@ -37,8 +50,14 @@ def cpu_model() -> str:
     return platform.processor() or platform.machine()
 
 
+def relative(arg: str) -> str:
+    """An argument with the repository prefix removed, so recorded commands do not depend on the machine."""
+    root = ROOT.rstrip(os.sep) + os.sep
+    return arg.replace(root, "") if root in arg else arg
+
+
 def command_line() -> str:
-    return "python " + " ".join(sys.argv)
+    return "python " + " ".join(relative(a) for a in sys.argv)
 
 
 def make_run_dir(exp: str, run_id: str) -> str:
@@ -49,9 +68,12 @@ def make_run_dir(exp: str, run_id: str) -> str:
 
 def write_meta(run_dir: str, cfg: Config, seed: int, extra: dict | None = None):
     cfg.to_json(os.path.join(run_dir, "config.json"))
-    meta = dict(seed=seed, git=git_hash(), versions=versions(), cpu=cpu_model(),
+    h = git_hash()
+    meta = dict(seed=seed, git=h, versions=versions(), cpu=cpu_model(),
                 platform=platform.platform(), command=command_line(),
                 timestamp=_dt.datetime.now().isoformat(timespec="seconds"))
+    if h.endswith("-dirty"):
+        meta["code_diff"] = code_diff()            # the uncommitted code the run used
     if extra:
         meta.update(extra)
     with open(os.path.join(run_dir, "meta.json"), "w") as fh:

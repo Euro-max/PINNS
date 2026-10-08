@@ -28,12 +28,13 @@ import sys
 os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
 
 import numpy as np  # noqa: E402
+from scipy import stats  # noqa: E402
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, start, write_text  # noqa: E402
 from experiments.e17_hf_compare import SEEDS, arms_for  # noqa: E402
 from pinc.config import RESULTS_DIR, ROOT, load_config  # noqa: E402
-from pinc.metrics import bootstrap_ci, paired_wilcoxon  # noqa: E402
+from pinc.metrics import bootstrap_ci  # noqa: E402
 
 REFS = {"speed_sin": ("speed_sin", {}, 10.0),
         "speed_step": ("speed_step", {}, 10.0),
@@ -151,18 +152,25 @@ def report(run_dir, sizes, cfg, a):
                 if arm in NMPC or arm == base_arm:
                     continue
                 b = get(rname, base_arm, base_n)
-                common = sorted(set(g) & set(b))
-                if len(common) < 3:
+                # unit of pairing: a training seed of the first controller, averaged over its noise seeds; the
+                # second controller is averaged over the same noise seeds (Section 5.3), not 10 independent runs
+                units = {}
+                for s_, r_ in g.items():
+                    if s_ in b:
+                        units.setdefault(r_["model_seed"], []).append(s_)
+                if len(units) < 3:
                     continue
                 cells = []
                 for k in ("rmse_vx", "rmse_Y", "max_Y"):
-                    x, y = [g[s][k] for s in common], [b[s][k] for s in common]
-                    w = paired_wilcoxon(x, y)
-                    cells.append(f"{np.mean(y)/np.mean(x):.2f} ({sum(xi < yi for xi, yi in zip(x, y))}/{len(common)}, p = {w['p']:.2g})")
+                    x = np.array([np.mean([g[s_][k] for s_ in ss]) for ss in units.values()])
+                    y = np.array([np.mean([b[s_][k] for s_ in ss]) for ss in units.values()])
+                    d = np.log(y) - np.log(x)
+                    p_ = float(stats.ttest_rel(np.log(y), np.log(x)).pvalue) if np.std(d) > 0 else float("nan")
+                    cells.append(f"{np.exp(np.mean(d)):.2f} ({int(np.sum(x < y))}/{len(units)}, p = {p_:.2g})")
                 crows.append([label, base_arm] + cells)
         text += (f"\n## {rname}\n\n" + md_table(["controller", "runs", f"runs with max Y error > {LOST_Y:g} m", "median rmse_vx", "median rmse_Y"] + list(METRICS), rows) +
-                 ("\nError of the second controller divided by the error of the first (above 1: the first is better); "
-                  "runs won; paired Wilcoxon p\n\n" + md_table(["controller", "against", "rmse_vx", "rmse_Y", "max_Y"], crows)
+                 ("\nGeometric-mean ratio of the second controller's error to the first's over training seeds (above 1: the "
+                  "first is better), each seed averaged over its noise seeds; seeds won; paired t-test on log errors\n\n" + md_table(["controller", "against", "rmse_vx", "rmse_Y", "max_Y"], crows)
                   if crows else ""))
     art = write_text(os.path.join(run_dir, "table_closed_loop.md"), text)
     finish(run_dir, cfg, a.seed, dict(variant=a.variant, sizes=list(sizes), refs=REFS, per_ref=summ), [art])
