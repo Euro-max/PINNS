@@ -1,6 +1,6 @@
 % Reference tyre forces from the MathWorks Vehicle Dynamics Blockset Magic Formula solver
 % (vdyntire.internal.solvers.vdyncsmtire, as called by the Combined Slip Wheel 2DOF block) for the
-% "Light passenger car 205/60R15" set, on a grid of slip, slip angle and vertical load at 20 m/s.
+% "Mid-size passenger car 235/45R18" set (the block default, as in export_tyre_params.m), on a grid of slip, slip angle and vertical load at 20 m/s.
 % Used by tests/test_plant_hf.py to cross-check pinc/tyre_mf.py.  The solver's argument list is read
 % from the block's own MATLAB Function chart.  Scale factors: all 1 except lam_muV = 0 (no slip-speed
 % friction decay; ScaleFctrs(4) per the block documentation).  Turn slip off, zero camber, nominal
@@ -12,7 +12,7 @@
 out = fullfile(getenv('USERPROFILE'),'pinc_tyre');
 new_system('pinc_ref'); c = onCleanup(@() close_system('pinc_ref',0));
 blk = 'pinc_ref/w'; add_block('vehdynlibtire/Combined Slip Wheel 2DOF', blk);
-set_param(blk,'tireType','Light passenger car 205/60R15');
+set_param(blk,'tireType','Mid-size passenger car 235/45R18');
 set_param('pinc_ref','SimulationCommand','update');
 wsv = get_param(blk,'MaskWSVariables'); W = containers.Map({wsv.Name}, {wsv.Value});
 load_system('vehdynlibtirecommon'); rt = sfroot;

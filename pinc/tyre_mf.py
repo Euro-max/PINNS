@@ -43,7 +43,7 @@ class _LazyTF(SimpleNamespace):
 TF = _LazyTF()
 
 DEFAULT_FILE = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "tyre",
-                            "mf_205_60R15_params.txt")
+                            "mf_235_45R18_params.txt")
 SCALES = ("LFZO", "LCX", "LMUX", "LEX", "LKX", "LHX", "LVX", "LCY", "LMUY", "LEY", "LKY", "LHY", "LVY",
           "LXAL", "LYKA", "LVYKA")
 EPS = 1e-6

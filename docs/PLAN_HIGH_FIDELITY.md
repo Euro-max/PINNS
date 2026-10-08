@@ -83,7 +83,7 @@ F_x  = G_xa(alpha, kappa) F_x0,      F_y = G_yk(alpha, kappa) F_y0 + S_Vyk
 ```
 with every coefficient a function of `Fz` given by the MF 6.1 parameter set.
 
-**Tyre data.**  MF parameter set for the **"Light passenger car 205/60R15"** tyre of the MathWorks Vehicle
+**Tyre data.**  MF parameter set for the **"Mid-size passenger car 235/45R18"** tyre (labelled 205/60R15 here until 2026-10-08: the export kept the block default set, see scripts/export_tyre_params.m) of the MathWorks Vehicle
 Dynamics Blockset (R2025b, block `vehdynlibtire/Combined Slip Wheel 2DOF`, 229 parameters: FNOMIN = 4300 N,
 unloaded radius 0.335 m, wheel inertia 1.084 kg m^2), exported by `scripts/export_tyre_params.m`.
 At the static load of our car its cornering stiffness is ~53 kN/rad per wheel (~106 kN/rad per axle,
@@ -265,4 +265,4 @@ budget at longer horizons; the grey-box model may match PINC on accuracy but be 
 
 - **Drive layout:** front-wheel drive by default; the front drive share is a config parameter (§2).
 - **Current results:** kept separate for now; paper framing decided after the H-experiments (Phase 7).
-- **Tyre data:** Vehicle Dynamics Blockset MF 6.1 set, "Light passenger car 205/60R15", exported locally (§2).
+- **Tyre data:** Vehicle Dynamics Blockset MF 6.1 set, "Mid-size passenger car 235/45R18", exported locally (§2).
