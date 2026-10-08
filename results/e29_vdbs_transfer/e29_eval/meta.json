@@ -1,0 +1,16 @@
+{
+  "command": "python experiments/e29_vdbs_transfer.py --part eval --run-id e29_eval",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "d4fb1bec7dac2f65c88441953df8969b7b820b12",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "seed": 0,
+  "timestamp": "2026-10-08T17:27:40",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
