@@ -2567,3 +2567,5 @@ artifact | command | git hash
 `results/e18_hf_closed_loop/e18_s1/summary.json` | `python experiments/e18_hf_closed_loop.py --variant st --registry results/e27_study1_rerun/e27_main/registry.json --sizes 100,20000 --report --run-id e18_s1` | `d4fb1bec7dac2f65c88441953df8969b7b820b12`
 `results/e29_vdbs_transfer/e29_eval/table_eval.md` | `python experiments/e29_vdbs_transfer.py --part eval --run-id e29_eval` | `d4fb1bec7dac2f65c88441953df8969b7b820b12`
 `results/e29_vdbs_transfer/e29_eval/summary.json` | `python experiments/e29_vdbs_transfer.py --part eval --run-id e29_eval` | `d4fb1bec7dac2f65c88441953df8969b7b820b12`
+`results/e30_speed_prediction/e30_m0/table_speed_prediction.md` | `python experiments/e30_speed_prediction.py --variant m0 --run-id e30_m0` | `c760fdbdb050e07c58bdc168776e0fd0328a889f-dirty`
+`results/e30_speed_prediction/e30_m0/summary.json` | `python experiments/e30_speed_prediction.py --variant m0 --run-id e30_m0` | `c760fdbdb050e07c58bdc168776e0fd0328a889f-dirty`
