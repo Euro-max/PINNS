@@ -19,3 +19,12 @@ model is built locally from the MathWorks reference and is not part of the repos
 
 The Blockset body uses SAE axes (y right, yaw positive to the right); the harness turns our steer angle into a
 negative wheel angle for a left turn, and `vdbs_extract` returns our ISO axes. Wheel order: FL, FR, RL, RR.
+
+## E30: training data on the Blockset vehicle
+
+`python -m experiments.e30_vdbs_retrain --part inputs` writes the drive commands, sampled times, held inputs and
+read-out times (as `pinc/data_hf.driving_states` and `pinc/data.sample_trajectories`). In MATLAB,
+`vdbs_train_data('pilot')` times the first 12 drives and projects the total, `vdbs_train_data('full')` runs all
+drives on parallel workers in blocks of 100 (a rerun resumes) and writes `train_data.mat`, and
+`vdbs_train_data('check')` re-simulates the first five drives for the reproducibility check. Then `--part assemble`
+(data files per seed and the checks), `--part train` and `--part eval`.

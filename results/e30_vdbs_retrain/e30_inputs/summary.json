@@ -1,0 +1,9 @@
+{
+  "part": "inputs",
+  "train": {
+    "n_drives": 1438
+  },
+  "val": {
+    "n_drives": 288
+  }
+}

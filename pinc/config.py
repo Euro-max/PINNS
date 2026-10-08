@@ -135,6 +135,8 @@ class TrainCfg:
     distill_from: str = ""            # run id of a trained grey-box model whose predictions label extra training samples
     n_distill: int = 20000            # number of samples it labels (unlabelled states from the collocation pool)
     distill_mask: list = field(default_factory=list)   # states the teacher labels (1) or leaves to the real data (0); empty: all
+    data_file: str = ""               # external trajectories (E30, Blockset vehicle): .npz with train_/val_ t, s0, u, s and a
+                                      # pool of starting states for the IC and collocation points; empty: generated
 
 
 @dataclass

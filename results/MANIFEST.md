@@ -2569,3 +2569,7 @@ artifact | command | git hash
 `results/e29_vdbs_transfer/e29_eval/summary.json` | `python experiments/e29_vdbs_transfer.py --part eval --run-id e29_eval` | `d4fb1bec7dac2f65c88441953df8969b7b820b12`
 `results/e30_speed_prediction/e30_m0/table_speed_prediction.md` | `python experiments/e30_speed_prediction.py --variant m0 --run-id e30_m0` | `c760fdbdb050e07c58bdc168776e0fd0328a889f-dirty`
 `results/e30_speed_prediction/e30_m0/summary.json` | `python experiments/e30_speed_prediction.py --variant m0 --run-id e30_m0` | `c760fdbdb050e07c58bdc168776e0fd0328a889f-dirty`
+`results/e30_speed_prediction/e30_m1/table_speed_prediction.md` | `python experiments/e30_speed_prediction.py --variant m1 --run-id e30_m1` | `f4345e184479ead9c3df4a68c55d849e1a326461`
+`results/e30_speed_prediction/e30_m1/summary.json` | `python experiments/e30_speed_prediction.py --variant m1 --run-id e30_m1` | `f4345e184479ead9c3df4a68c55d849e1a326461`
+`results/e30_vdbs_retrain/e30_inputs/table_inputs.md` | `python experiments/e30_vdbs_retrain.py --part inputs --run-id e30_inputs` | `f4345e184479ead9c3df4a68c55d849e1a326461-dirty`
+`results/e30_vdbs_retrain/e30_inputs/summary.json` | `python experiments/e30_vdbs_retrain.py --part inputs --run-id e30_inputs` | `f4345e184479ead9c3df4a68c55d849e1a326461-dirty`

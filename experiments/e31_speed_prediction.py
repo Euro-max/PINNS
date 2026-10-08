@@ -1,5 +1,5 @@
 """
-E30 -- Why do the learned controllers track the speed sinusoid worse than NMPC with the quasi-steady prior?
+E31 -- Why do the learned controllers track the speed sinusoid worse than NMPC with the quasi-steady prior?
 
 Error of each prediction model over the MPC horizon, per body state, on the E9 in-domain test set (100 initial
 states x 10 input sequences, the true plant of the variant): RMS of the scaled error at 1 and 10 control periods
@@ -31,7 +31,7 @@ def main(argv=None):
     ap.add_argument("--variant", default="m0")
     a = ap.parse_args(argv)
     a.config = os.path.join(ROOT, "configs", f"hf_{a.variant}.yaml")
-    _, run_dir = start("e30_speed_prediction", a)
+    _, run_dir = start("e31_speed_prediction", a)
     cfg = load_config(a.config, a.overrides)
     S_x = np.asarray(cfg.S_x)
     s0 = sample_box(N_IC, cfg.box_train, np.random.default_rng(cfg.seeds.test + 902), cfg)      # as E9 (test split)
@@ -65,7 +65,7 @@ def main(argv=None):
             rec["models"].setdefault(str(n), {})[arm] = dict(per_seed=per, mean=mean)
             rows.append([f"{arm}, N = {n}"] + [f"{mean[c]:.3g}" for c in cols])
             print(rows[-1], flush=True)
-    text = (f"# E30 prediction error over the MPC horizon, HF-{a.variant.upper()} (E9 in-domain test set; scaled RMS error "
+    text = (f"# E31 prediction error over the MPC horizon, HF-{a.variant.upper()} (E9 in-domain test set; scaled RMS error "
             "per body state; models: geometric mean over seeds 5-9; vx bias: mean signed v_x error at 10 steps in m/s, "
             "arithmetic mean over seeds)\n\n" + md_table(["predictor"] + cols, rows))
     art = write_text(os.path.join(run_dir, "table_speed_prediction.md"), text)

@@ -22,6 +22,9 @@ def _rng(seed):
 def sample_box(n: int, box, rng, cfg: Config | None = None, kind: str = "data", seed: int | None = None) -> np.ndarray:
     """Initial network states for `box` (the system decides how; bicycle: uniform).  `kind` / `seed` let a
     system with expensive state generation cache by split ('data', 'ic') or draw from a pool ('colloc')."""
+    if cfg is not None and getattr(cfg.train, "data_file", "") and kind in ("ic", "colloc"):
+        pool = external_data(cfg)["pool"]          # starting states of the external vehicle's drives
+        return pool[rng.integers(0, len(pool), size=n)]
     sysm = get_system(cfg or "bicycle")
     if getattr(sysm, "cached_states", False):
         return sysm.sample_s0(n, box, rng, kind=kind, seed=seed)
@@ -87,10 +90,33 @@ def scale_inputs(t, s0, u, cfg: Config) -> np.ndarray:
     return np.concatenate([t/cfg.T, np.asarray(s0)/cfg.S_x, np.asarray(u)/cfg.S_u], axis=1)
 
 
+_EXTERNAL = {}
+
+
+def external_data(cfg: Config) -> dict:
+    """Arrays of cfg.train.data_file (path relative to the repository), loaded once per process."""
+    import os
+    from .config import ROOT
+    path = os.path.join(ROOT, cfg.train.data_file)
+    if path not in _EXTERNAL:
+        with np.load(path) as d:
+            _EXTERNAL[path] = {k: np.asarray(d[k], dtype=float) for k in d.files}
+    return _EXTERNAL[path]
+
+
 def make_splits(cfg: Config, n_train: int | None = None) -> dict:
-    """Train / val / test / test_extrap with disjoint seeds (ground rule 8)."""
+    """Train / val / test / test_extrap with disjoint seeds (ground rule 8).  With cfg.train.data_file the
+    training set is the first n_train trajectories of the file (nested subsets) and the validation set the
+    file's; the external vehicle has its own chained test set, so test and test_extrap repeat the validation set."""
     tr = cfg.train
     n_train = tr.n_data if n_train is None else n_train
+    if getattr(tr, "data_file", ""):
+        d = external_data(cfg)
+        if n_train > len(d["train_t"]):
+            raise ValueError(f"{tr.data_file} has {len(d['train_t'])} training trajectories, {n_train} requested")
+        part = lambda pre, n=None: {k: d[f"{pre}_{k}"][:n] for k in ("t", "s0", "u", "s")}
+        val = part("val")
+        return dict(train=part("train", n_train), val=val, test=val, test_extrap=val)
     return dict(
         train=sample_trajectories(n_train, cfg.seeds.train, cfg, cfg.box_train),
         val=sample_trajectories(tr.n_val, cfg.seeds.val, cfg, cfg.box_train),
