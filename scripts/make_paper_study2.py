@@ -22,12 +22,14 @@ VARIANTS = ("m0", "m1")
 VTAG = dict(m0="Mzero", m1="Mone")
 NTAG = {100: "Hundred", 1000: "Thousand", 20000: "TwentyK"}
 ATAG = {"data-only": "Data", "PINC": "Pinc", "PINC-theta": "PincTheta", "grey-box": "Grey", "grey-box-qs": "GreyQs",
-        "distilled": "Distil", "A8 data-only": "AnchData", "A8 PINC": "Anch", "A8 PINC-theta": "AnchTheta"}
+        "distilled": "Distil", "A8 data-only": "AnchData", "A8 PINC": "Anch", "A8 PINC-theta": "AnchTheta",
+        "PINC-ablation": "PincAbl"}
 MTAG = dict(one_step="One", h10="Ten", h50="Fifty", h50_extrap="Extrap")
 LABEL = {"data-only": "data-only network", "PINC": "PINC network", "PINC-theta": "PINC network, learned $\\theta$",
          "grey-box": "grey-box, full prior", "grey-box-qs": "grey-box, quasi-steady prior", "distilled": "distilled network",
          "A8 data-only": "anchored data-only network", "A8 PINC": "anchored PINC network",
-         "A8 PINC-theta": "anchored PINC network, learned $\\theta$"}
+         "A8 PINC-theta": "anchored PINC network, learned $\\theta$",
+         "PINC-ablation": "PINC network, $\\lambda = 10^{-3}$ (ablation)"}
 
 
 def load(exp, run):
@@ -87,8 +89,29 @@ def ci_cell(v):
 
 
 # ---------------------------------------------------------------- per-seed values of every learned arm, pooled
+E28_NAMES = {"anchored PINC": "A8 PINC", "anchored data-only": "A8 data-only"}
+
+
+def pooled_main():
+    """Main results (E28, seeds 5-9, never used for any selection): arms[variant][N][arm][metric] = list over seeds.
+    Where the selected lambda is 0 the PINC network is the data-only network; it is then left out and the
+    lambda = 1e-3 run appears as 'PINC-ablation'."""
+    out, lams = {}, {}
+    for v in VARIANTS:
+        s = load("e28_main_fresh", f"e28_{v}")
+        out[v], lams[v] = {}, {int(n): l for n, l in s["lambdas"].items()}
+        for n, arms in s["results"].items():
+            reg = s["registry"][n]
+            for arm, val in arms.items():
+                if arm == "PINC" and reg["PINC"] == reg["data-only"]:
+                    continue
+                out[v].setdefault(int(n), {})[E28_NAMES.get(arm, arm)] = {m: val[m] for m in MTAG}
+    return out, lams
+
+
 def pooled():
-    """arms[variant][N][arm][metric] = list over seeds 0-4 (same seeds and test sets in E17, E19, E20, E22, E23)."""
+    """Secondary results on seeds 0-4 (E17, E19, E20, E22, E23): the distilled network and the learned physics
+    parameters; compared only with arms of the same seeds.  arms[variant][N][arm][metric] = list over seeds."""
     out = {}
     for v in VARIANTS:
         out[v] = {}
@@ -107,7 +130,7 @@ def pooled():
     return out
 
 
-PAIRS = [("PINC", "data-only"), ("grey-box", "data-only"), ("grey-box-qs", "data-only"), ("PINC", "grey-box"),
+PAIRS = [("PINC-ablation", "data-only"), ("A8 PINC", "PINC-ablation"), ("PINC", "data-only"), ("grey-box", "data-only"), ("grey-box-qs", "data-only"), ("PINC", "grey-box"),
          ("PINC", "grey-box-qs"), ("A8 PINC", "PINC"), ("A8 PINC", "A8 data-only"), ("A8 PINC", "data-only"),
          ("A8 data-only", "data-only"), ("A8 PINC", "grey-box-qs"), ("A8 PINC", "grey-box"), ("grey-box-qs", "grey-box"),
          ("PINC-theta", "data-only"), ("PINC-theta", "PINC"), ("A8 PINC-theta", "A8 PINC"), ("A8 PINC-theta", "PINC-theta"),
@@ -115,21 +138,28 @@ PAIRS = [("PINC", "data-only"), ("grey-box", "data-only"), ("grey-box-qs", "data
          ("distilled", "grey-box"), ("distilled", "A8 PINC")]
 
 
-def comparisons(arms):
-    """Macros \\Cmp<V><N><X>Vs<Y><metric>{Ratio,Wins,P}: error of Y divided by error of X (above 1: X better)."""
+SECONDARY = ("PINC-theta", "A8 PINC-theta", "distilled")
+
+
+def comparisons(arms, prefix=""):
+    """Macros \\<prefix>Cmp<V><N><X>Vs<Y><metric>{Ratio,Wins,P}: error of Y divided by error of X (above 1: X
+    better).  Main results without prefix (E28, seeds 5-9); prefix 'Sec' for the secondary arms (seeds 0-4), whose
+    comparisons only involve arms of the same seeds."""
     for v, byn in arms.items():
         for n, a in byn.items():
             for arm, val in a.items():
                 for m, t in MTAG.items():
-                    macro(f"Val{VTAG[v]}{NTAG[n]}{ATAG[arm]}{t}", sci(float(gmean(val[m]))).strip("$"))
+                    macro(f"{prefix}Val{VTAG[v]}{NTAG[n]}{ATAG[arm]}{t}", sci(float(gmean(val[m]))).strip("$"))
             for x, y in PAIRS:
+                if prefix and not (x in SECONDARY or y in SECONDARY):
+                    continue
                 if x in a and y in a:
                     for m, t in MTAG.items():
-                        cmp_macros(f"Cmp{VTAG[v]}{NTAG[n]}{ATAG[x]}Vs{ATAG[y]}{t}", compare(a[x][m], a[y][m]))
+                        cmp_macros(f"{prefix}Cmp{VTAG[v]}{NTAG[n]}{ATAG[x]}Vs{ATAG[y]}{t}", compare(a[x][m], a[y][m]))
 
 
 def table_main(arms):
-    order = ["data-only", "PINC", "A8 data-only", "A8 PINC", "PINC-theta", "A8 PINC-theta", "grey-box-qs", "grey-box"]
+    order = ["data-only", "PINC", "PINC-ablation", "A8 data-only", "A8 PINC", "grey-box-qs", "grey-box"]
     for v in VARIANTS:
         rows = []
         for n in sorted(arms[v]):
@@ -139,8 +169,9 @@ def table_main(arms):
                 rows.append([f"{n:,}".replace(",", "\\,") if first else "", LABEL[arm]] + [ci_cell(val[m]) for m in ("one_step", "h10", "h50")])
                 first = False
         cap = (f"Test error of the learned models on {v.upper()} (NRMSE of the body states $v_x, v_y, r, \\psi$), geometric mean [95\\,\\% "
-               "confidence interval] over five training seeds; one step and chained predictions of 10 and 50 control periods. "
-               "$N$: training trajectories.")
+               "confidence interval] over five training seeds (5 to 9, not used in any selection); one step and chained predictions "
+               "of 10 and 50 control periods. $N$: training trajectories. Physics weights as selected on the validation set "
+               "(Table~\\ref{tab:lam-sel}).")
         write(f"tab_s2_main_{v}.tex", tabular("llccc", ["$N$", "model", "one step", "10 steps", "50 steps"], rows, cap,
                                                f"tab:s2-main-{v}", wide=True))
 
@@ -627,10 +658,86 @@ def lambda_facts():
     return g
 
 
+def lambda_criterion():
+    """Sensitivity of the lambda selection to the criterion: the lambda the validation 10-step error would select,
+    next to the one used (validation 50-step error), from the E9 validation runs of the E15 / E23 grids (seeds 0-2).
+    Also one-step test error against lambda (E15 / E23, seeds 0-2) with the prior's one-step error (E25)."""
+    rows, one = [], {}
+    pa = load("e25_prior_accuracy", "e25")["results"]
+    for net, exp, fmt in (("plain", "e15_{v}_grid_e9val", "hf{v}_n{n}_lam{l}_s{k}"),
+                          ("anchored", "e23_lambda_{v}_grid_e9val", "hf{v}_n{n}_lam{l}_anchored_s{k}")):
+        for v in VARIANTS:
+            ev = load("e9_physics_learning", exp.format(v=v))["models"]
+            for n in LAM_SIZES:
+                hz = {}
+                for k_ in ev:
+                    head = fmt.format(v=v, n=n, l="", k="").split("_lam")[0] + "_lam"
+                    if not k_.startswith(head) or (net == "plain" and "anchored" in k_):
+                        continue
+                    lam = float(k_[len(head):].split("_")[0])
+                    hz.setdefault(lam, {10: [], 50: []})
+                    for h in (10, 50):
+                        hz[lam][h].append(ev[k_]["horizon_body"]["in_domain"][str(h)]["mean"])
+                fmt_l = lambda l: f"{l:g}" if l >= 0.1 or l == 0 else f"10^{{{int(round(np.log10(l)))}}}"
+                sel = {h: min(hz, key=lambda l: np.mean(hz[l][h])) for h in (10, 50)}
+                tag = f"{'Plain' if net == 'plain' else 'Anch'}{VTAG[v]}{NTAG[n]}"
+                macro(f"LamTenSel{tag}", fmt_l(sel[10]))
+                for l in (sel[10], sel[50]):
+                    macro(f"LamTenVal{tag}{'Ten' if l == sel[10] else 'Fifty'}Sel", sci(float(np.mean(hz[l][10]))).strip("$"))
+                rows.append([("PINC" if net == "plain" else "anchored PINC") if (v == "m0" and n == LAM_SIZES[0]) else "",
+                             v.upper() if n == LAM_SIZES[0] else "", f"{n:,}".replace(",", "\\,"), f"${fmt_l(sel[50])}$", f"${fmt_l(sel[10])}$"])
+    write("tab_lam_criterion.tex", tabular("lllcc", ["network", "variant", "$N$", "50-step (used)", "10-step"], rows,
+                                           "Physics weight $\\lambda$ selected by the mean validation error over three seeds (0 to 2) of chained "
+                                           "50-step predictions (used for all main results) and the weight the 10-step error would select. "
+                                           "M0: matched stiffness; M1: mismatched stiffness and actuator lag.", "tab:lam-criterion"))
+    for v in VARIANTS:
+        macro(f"PriorOneStep{VTAG[v]}", f"{pa[v]['quasi-steady']['all_t']['body']:.4f}")
+    return pa
+
+
+def fig_lambda_onestep(g, pa):
+    """One-step test error against lambda (seeds 0-2) with the prior's one-step error (dashed)."""
+    plt = _plt()
+    e15 = {v: load("e15_hf_data", f"e15_{v}_grid")["runs"] for v in VARIANTS}
+    e23 = {v: load("e23_anchored_extend", f"e23_lambda_{v}_grid")["results"] for v in VARIANTS}
+    fig, axes = plt.subplots(2, 2, figsize=(7.0, 4.6), sharex=True)
+    col = {100: "#2a78d6", 1000: "#eb6834", 20000: "#1baf7a"}
+    mk = {100: "o", 1000: "s", 20000: "^"}
+    for (net, v), ax in zip([(n_, v_) for n_ in ("plain", "anchored") for v_ in VARIANTS], axes.flat):
+        for n in LAM_SIZES:
+            if net == "plain":
+                by = {float(k.split("_")[1]): x["test"]["body"] for k, x in e15[v].items() if k.split("_")[0] == str(n)}
+            else:
+                by = {float(a.split()[-1]): x["one_step"] for a, x in e23[v][str(n)].items()}
+            lams = sorted(by)
+            xs = [np.log10(l) if l > 0 else -5 for l in lams]
+            m = [gmean(by[l]) for l in lams]
+            ax.plot(xs[1:], m[1:], color=col[n], marker=mk[n], ls="-", label=f"$N$ = {n:,}".replace(",", "\u2009"))
+            ax.plot(xs[:1], m[:1], color=col[n], marker=mk[n], ls="none")
+            tag = f"{'Plain' if net == 'plain' else 'Anch'}{VTAG[v]}{NTAG[n]}"
+            macro(f"OneStepLamMax{tag}", sci(float(m[-1])).strip("$"))
+        ax.axhline(pa[v]["quasi-steady"]["all_t"]["body"], color=INK, lw=0.9, ls="--", label="prior (quasi-steady)")
+        ax.axvline(-4.5, color=MUTED, lw=0.6, ls=":")
+        ax.set(yscale="log", title={"plain": "PINC network", "anchored": "anchored PINC network"}[net] + f", {v.upper()}")
+        ax.title.set_color(INK)
+    ticks = [-5, -4, -3, -2, -1, 0, 1, 2]
+    for ax in axes[1]:
+        ax.set_xticks(ticks, ["0"] + [f"$10^{{{t}}}$" for t in ticks[1:]])
+        ax.set_xlabel("physics weight $\\lambda$")
+    for ax in axes[:, 0]:
+        ax.set_ylabel("one-step test error")
+    h, l = axes[0, 0].get_legend_handles_labels()
+    fig.legend(h, l, fontsize=7, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.03))
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    _save(fig, "fig_s2_lambda_onestep")
+    plt.close(fig)
+
+
 # ---------------------------------------------------------------- figures
 # One fixed colour per model across every figure (dataviz reference palette, fixed order), plus a marker and a
 # line style, so no figure relies on colour alone.
 STYLE = {"A8 PINC": ("#2a78d6", "o", "-"), "PINC": ("#eb6834", "s", "--"), "data-only": ("#1baf7a", "^", ":"),
+         "PINC-ablation": ("#eb6834", "s", ":"),
          "grey-box-qs": ("#eda100", "D", "-."), "grey-box": ("#e87ba4", "v", (0, (3, 1, 1, 1, 1, 1))),
          "NMPC-prior": ("#008300", "P", "--"), "NMPC-true": ("#4a3aa7", "X", "-")}
 INK, MUTED = "#222222", "#6b6b6b"
@@ -763,8 +870,9 @@ def fig_dlc():
 
 def main():
     os.makedirs(OUT, exist_ok=True)
-    arms = pooled()
+    arms, _ = pooled_main()
     comparisons(arms)
+    comparisons(pooled(), prefix="Sec")
     table_main(arms)
     study1()
     prior()
@@ -778,6 +886,8 @@ def main():
     params_table()
     g = lambda_facts()
     fig_lambda(g)
+    pa = lambda_criterion()
+    fig_lambda_onestep(g, pa)
     fig_data(arms)
     fig_speed(arms)
     fig_dlc()

@@ -44,7 +44,7 @@ uv pip install --python .venv/bin/python -r requirements.txt "tensorflow[and-cud
 
 `pinc/__init__.py` handles two GPU problems found on WSL2. It lets TensorFlow allocate GPU memory as needed, because reserving the whole GPU up front fails, and it preloads the cuSOLVER library, which TensorFlow 2.21 otherwise does not find, so it silently runs without the GPU. Training must stay in float64, because in float32 the L-BFGS stage stops after a few iterations and the model ends up about 5 times worse (`results/env_check/`).
 
-Study 2 needs the tyre data, which is MathWorks data and not stored in the repository. Run `scripts/export_tyre_params.m` and `scripts/export_tyre_reference.m` in MATLAB with the Vehicle Dynamics Blockset and copy the output into `data/tyre/`. Without it the Study 2 tests are skipped.
+Study 2 needs the tyre data: the Magic Formula parameter set "Mid-size passenger car 235/45R18" that ships with the MathWorks Vehicle Dynamics Blockset. It is not stored in the repository, because the MATLAB licence does not allow files provided with a product to be redistributed. With MATLAB R2025b and the Vehicle Dynamics Blockset, run `scripts/export_tyre_params.m` and `scripts/export_tyre_reference.m` (for example `matlab -batch "cd('scripts'); export_tyre_params; export_tyre_reference"`) and copy `mf_235_45R18_params.txt` and `mf_reference.csv` from `%USERPROFILE%\pinc_tyre` into `data/tyre/`. Without them the Study 2 tests are skipped. The Blockset vehicle of E29 is built the same way from the MathWorks reference model (`scripts/vdbs/README.md`).
 
 ## Test
 

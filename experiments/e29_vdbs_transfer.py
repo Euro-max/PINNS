@@ -19,6 +19,7 @@ import os
 import sys
 
 import numpy as np
+from scipy import stats
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from experiments.common import base_parser, finish, md_table, start, write_text  # noqa: E402
@@ -72,6 +73,22 @@ def horizon_errors(pred_body, truth_body, S_x):
     return {h: np.sqrt(np.mean(e2[:, :, h - 1, :], axis=(1, 2))) for h in HORIZONS}
 
 
+def resistance_fit(v, F, m, T, straight):
+    """Driving resistance R(v) = c0 + c2 v^2 from straight running: R = F_act - m dv/dt over one control period
+    (v, F: (..., n_steps + 1) with the initial state first; straight: mask of the same shape)."""
+    dv = (v[..., 1:] - v[..., :-1])/T
+    vm, Fm, ok = 0.5*(v[..., 1:] + v[..., :-1]), F[..., :-1], straight[..., :-1] & straight[..., 1:]
+    A = np.stack([np.ones(ok.sum()), vm[ok]**2], axis=1)
+    c, *_ = np.linalg.lstsq(A, Fm[ok] - m*dv[ok], rcond=None)
+    return dict(c0=float(c[0]), c2=float(c[1]), n=int(ok.sum()))
+
+
+def state_errors(pred_body, truth_body, S_x):
+    """RMS scaled error per body state (vx, vy, r, psi) at each horizon, over all initial states and sequences."""
+    e2 = ((pred_body - truth_body)/S_x[:4])**2
+    return {h: np.sqrt(np.mean(e2[:, :, h - 1, :], axis=(0, 1))).tolist() for h in HORIZONS}
+
+
 def part_eval(a, cfg):
     import scipy.io as sio
     import tensorflow as tf
@@ -89,41 +106,80 @@ def part_eval(a, cfg):
     truth = X[..., :4]
     S_x = np.asarray(cfg.S_x)
 
-    def score(rollout):
-        p = np.asarray(rollout(tf.constant(s0r), tf.constant(ur))).reshape(n, N_SEQ, N_STEPS, -1)[..., :4]
-        return horizon_errors(p, truth, S_x)
+    def score(rollout, full=False):
+        p = np.asarray(rollout(tf.constant(s0r), tf.constant(ur))).reshape(n, N_SEQ, N_STEPS, -1)
+        e = horizon_errors(p[..., :4], truth, S_x)
+        return (e, state_errors(p[..., :4], truth, S_x), p) if full else (e, state_errors(p[..., :4], truth, S_x))
 
-    rows, rec = [], {"references": {}, "models": {}}
+    STATES = ("vx", "vy", "r", "psi")
+    rows, srows, rec = [], [], {"references": {}, "models": {}, "per_state": {}}
+    p_plant = None
     for name, model in (("our plant (M0)", "true"), ("full prior", "prior"), ("quasi-steady prior", "qs")):
-        e = score(RK4Predictor(cfg, model=model).rollout_batch)
+        e, se, p = score(RK4Predictor(cfg, model=model).rollout_batch, full=True)
+        if model == "true":
+            p_plant = p
+        if model == "qs":
+            e_prior = {h: float(np.mean(e[h])) for h in HORIZONS}
         rec["references"][name] = {str(h): bootstrap_ci(e[h].tolist()) for h in HORIZONS}
-        rows.append([name, "-", ci_cell(e[10].tolist()), ci_cell(e[50].tolist()), "-", "-"])
+        rec["per_state"][name] = {str(h): v for h, v in se.items()}
+        rows.append([name, "-", ci_cell(e[10].tolist()), ci_cell(e[50].tolist()), "-", "-", "-"])
+        srows.append([name] + [f"{v:.3g}" for h in HORIZONS for v in se[h]])
+
+    # driving resistance of the Blockset vehicle, and of our plant by the same regression (check of the method)
+    m = cfg.params["m"]
+    straight = lambda z: (np.abs(z[..., 2]) < 0.03) & (np.abs(z[..., 5]) < 0.01)
+    zb = np.concatenate([ic[:, None, None, :].repeat(N_SEQ, axis=1), X], axis=2)           # (n, seq, steps+1, 16)
+    res_b = resistance_fit(zb[..., 0], zb[..., 10], m, cfg.T, (np.abs(zb[..., 2]) < 0.03) & (np.abs(zb[..., 11]) < 0.01))
+    zp = np.concatenate([s0r.reshape(n, N_SEQ, 1, -1), p_plant], axis=2)                    # network states
+    res_p = resistance_fit(zp[..., 0], zp[..., 4], m, cfg.T, straight(zp))
+    rec["resistance"] = dict(blockset=res_b, our_plant=res_p,
+                             our_plant_nominal=dict(c0=cfg.params["Frr"], c2=0.5*cfg.params["rho"]*cfg.params["Cd"]*cfg.params["A"]))
 
     own = json.load(open(os.path.join(RESULTS_DIR, "e28_main_fresh", "e28_m0", "summary.json")))
     reg = own["registry"]
     for n_tr in SIZES:
         for arm, tmpl in reg[str(n_tr)].items():
-            per_seed = {10: [], 50: []}
+            per_seed, se_seed = {10: [], 50: []}, []
             for seed in own["seeds"]:
                 rid = tmpl.format(seed=seed)
                 net = PINCNet.load_from(os.path.join(RESULTS_DIR, "models", rid))
-                e = score(make_predictor(net, cfg).rollout_batch)
+                e, se = score(make_predictor(net, cfg).rollout_batch)
                 for h in HORIZONS:
                     per_seed[h].append(float(np.mean(e[h])))
+                se_seed.append(se)
                 tf.keras.backend.clear_session()
             own10, own50 = own["results"][str(n_tr)][arm]["h10"], own["results"][str(n_tr)][arm]["h50"]
             gm = lambda v: float(np.exp(np.mean(np.log(v))))
+            vs_prior = {}
+            for h in HORIZONS:                       # prior error / model error over training seeds (above 1: model better)
+                lr = np.log(e_prior[h]) - np.log(per_seed[h])
+                pv = float(stats.ttest_1samp(lr, 0.0).pvalue) if np.std(lr) > 0 else float("nan")
+                vs_prior[str(h)] = dict(ratio=float(np.exp(np.mean(lr))), wins=int(np.sum(lr > 0)), p=pv)
+            se_mean = {str(h): np.mean([s_[h] for s_ in se_seed], axis=0).tolist() for h in HORIZONS}
             rec["models"].setdefault(str(n_tr), {})[arm] = dict(h10=per_seed[10], h50=per_seed[50], own_h10=own10, own_h50=own50,
-                                                               ratio_h10=gm(per_seed[10])/gm(own10), ratio_h50=gm(per_seed[50])/gm(own50))
-            rows.append([f"{arm}, N = {n_tr}", len(own["seeds"]), ci_cell(per_seed[10]), ci_cell(per_seed[50]),
-                         f"{gm(per_seed[10])/gm(own10):.2f}", f"{gm(per_seed[50])/gm(own50):.2f}"])
+                                                               ratio_h10=gm(per_seed[10])/gm(own10), ratio_h50=gm(per_seed[50])/gm(own50),
+                                                               vs_prior=vs_prior, per_state=se_mean)
+            k = len(own["seeds"])
+            rows.append([f"{arm}, N = {n_tr}", k, ci_cell(per_seed[10]), ci_cell(per_seed[50]),
+                         f"{gm(per_seed[50])/gm(own50):.2f}",
+                         f"{vs_prior['10']['ratio']:.2f} ({vs_prior['10']['wins']}/{k}, p = {vs_prior['10']['p']:.2g})",
+                         f"{vs_prior['50']['ratio']:.2f} ({vs_prior['50']['wins']}/{k}, p = {vs_prior['50']['p']:.2g})"])
+            srows.append([f"{arm}, N = {n_tr}"] + [f"{v:.3g}" for h in HORIZONS for v in se_mean[str(h)]])
             print(rows[-1], flush=True)
     rec["n_ic"] = n
+    rb, rp, rn = res_b, res_p, rec["resistance"]["our_plant_nominal"]
     text = (f"# E29 transfer to the Blockset 14-DOF vehicle (M0 models of E28, seeds 5-9; {n} initial states x {N_SEQ} "
             "sequences; NRMSE of the body states)\n\nReferences are single predictors (mean [95% CI] over initial states); "
-            "models: mean [95% CI] over five training seeds.  Ratio: geometric mean on the Blockset vehicle over the "
-            "geometric mean on our plant's test set (E28).\n\n" +
-            md_table(["predictor", "seeds", "10 steps", "50 steps", "ratio 10", "ratio 50"], rows))
+            "models: mean [95% CI] over five training seeds.  'own test': geometric mean on the Blockset vehicle over the "
+            "geometric mean on our plant's test set (E28).  'vs prior': quasi-steady prior error / model error, geometric "
+            "mean over training seeds (above 1: the model is more accurate than the prior), seeds better than the prior, "
+            "one-sample t-test of the log ratio over seeds.\n\n" +
+            md_table(["predictor", "seeds", "10 steps", "50 steps", "own test, 50", "vs prior, 10", "vs prior, 50"], rows) +
+            "\n## Error per body state (RMS over initial states and sequences; models: mean over seeds)\n\n" +
+            md_table(["predictor"] + [f"{s_} {h}" for h in HORIZONS for s_ in STATES], srows) +
+            f"\n## Driving resistance (straight running, |r| < 0.03 rad/s, |delta| < 0.01 rad; R = F_act - m dv/dt)\n\n"
+            f"Blockset vehicle: {rb['c0']:.0f} N + {rb['c2']:.3f} v^2 ({rb['n']} samples).  Our plant, same regression on its "
+            f"rollouts: {rp['c0']:.0f} N + {rp['c2']:.3f} v^2 ({rp['n']} samples); nominal {rn['c0']:.0f} N + {rn['c2']:.3f} v^2.\n")
     return rec, text
 
 
