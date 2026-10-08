@@ -2579,3 +2579,5 @@ artifact | command | git hash
 `results/e18_hf_closed_loop/e18_s2_m1/summary.json` | `python experiments/e18_hf_closed_loop.py --variant m1 --registry results/e28_main_fresh/e28_m1/registry.json --sizes 100,1000 --report --run-id e18_s2_m1` | `e4f8999773260a41b7849679e4a8a48d6606fff4-dirty`
 `results/e18_hf_closed_loop/e18_s1/table_closed_loop.md` | `python experiments/e18_hf_closed_loop.py --variant st --registry results/e27_study1_rerun/e27_main/registry.json --sizes 100,20000 --report --run-id e18_s1` | `e4f8999773260a41b7849679e4a8a48d6606fff4-dirty`
 `results/e18_hf_closed_loop/e18_s1/summary.json` | `python experiments/e18_hf_closed_loop.py --variant st --registry results/e27_study1_rerun/e27_main/registry.json --sizes 100,20000 --report --run-id e18_s1` | `e4f8999773260a41b7849679e4a8a48d6606fff4-dirty`
+`results/e29_vdbs_transfer/e29_eval/table_eval.md` | `python experiments/e29_vdbs_transfer.py --part eval --run-id e29_eval` | `794714e5803917fd452644abd692f025aea14d6d`
+`results/e29_vdbs_transfer/e29_eval/summary.json` | `python experiments/e29_vdbs_transfer.py --part eval --run-id e29_eval` | `794714e5803917fd452644abd692f025aea14d6d`
