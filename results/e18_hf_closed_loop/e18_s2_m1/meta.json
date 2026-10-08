@@ -1,0 +1,16 @@
+{
+  "command": "python /home/elgondy_wsl/repo/PINNS/experiments/e18_hf_closed_loop.py --variant m1 --registry results/e28_main_fresh/e28_m1/registry.json --sizes 100,1000 --report --run-id e18_s2_m1",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "f2acb120687c3b9619986d6170d1a8a9071d2398-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "seed": 0,
+  "timestamp": "2026-10-08T15:21:00",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
