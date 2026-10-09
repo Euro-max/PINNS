@@ -305,12 +305,12 @@ def blockset():
     cell = lambda c: f"{sig2(c['ratio'])} ({c['wins']}/5)"
     macro("VbPriorOneStep", f"{chk['prior_qs_one_step_body']:.4f}")
     macro("VbPriorFifty", f"{e30['prior']['50']:.3f}"); macro("VbPriorTen", f"{e30['prior']['10']:.3f}")
-    macro("VbPriorOne", f"{e30['prior']['1']:.4f}")
+    macro("VbPriorOne", sci(float(e30['prior']['1'])).strip("$"))
     # the same metric (E9: mean over test starting states of the body-state RMS) for the prior on M0 and M1 (E31)
     for v in VARIANTS:
         pq = load("e31_speed_prediction", f"e31_priors_{v}")["priors"]["quasi-steady prior"]
         for h, t in (("1", "One"), ("10", "Ten"), ("50", "Fifty")):
-            macro(f"PriorTest{VTAG[v]}{t}", f"{pq[h]:.4f}")
+            macro(f"PriorTest{VTAG[v]}{t}", sci(float(pq[h])).strip("$"))           # same form as the network errors
     m0 = load("e31_speed_prediction", "e31_priors_m0")["priors"]["quasi-steady prior"]
     macro("VbPriorOverMzeroOne", f"{e30['prior']['1']/m0['1']:.1f}")
     macro("VbPriorOverMzeroTen", f"{e30['prior']['10']/m0['10']:.1f}")
@@ -383,6 +383,23 @@ def blockset_setup():
     r_ours, r_vb = float(x[2]), float(S["r"][-1])
     macro("VbYawGainLower", f"{100*(1 - r_vb/r_ours):.0f}")
     macro("VbStepSteer", "0.03"); macro("VbStepSpeed", "15")
+
+
+def speed_prediction():
+    """E31: why the learned controllers track speed worse than NMPC.  10-step v_x error (RMS, scaled) of the prior and
+    of the closed-loop networks (N = 100 and 1000, seeds 5-9), and their mean speed bias after 10 steps [m/s]."""
+    for v in VARIANTS:
+        s = load("e31_speed_prediction", f"e31_{v}")
+        pv = s["references"]["quasi-steady prior"]["vx_10"]
+        nets = {(n, a): r["mean"] for n, d in s["models"].items() for a, r in d.items()}
+        plain = [m for (n, a), m in nets.items() if not a.startswith("grey")]
+        grey = [m for (n, a), m in nets.items() if a.startswith("grey")]
+        macro(f"Spd{VTAG[v]}PriorVxTen", sci(pv).strip("$"))
+        macro(f"Spd{VTAG[v]}NetRatioMin", f"{min(m['vx_10'] for m in plain)/pv:.0f}")
+        macro(f"Spd{VTAG[v]}NetRatioMax", f"{max(m['vx_10'] for m in plain)/pv:.0f}")
+        macro(f"Spd{VTAG[v]}GreyRatioMin", f"{min(m['vx_10'] for m in grey)/pv:.1f}")
+        macro(f"Spd{VTAG[v]}GreyRatioMax", f"{max(m['vx_10'] for m in grey)/pv:.1f}")
+        macro(f"Spd{VTAG[v]}NetBiasMax", f"{max(abs(m['vx_bias_10']) for m in plain):.2f}")
 
 
 # ---------------------------------------------------------------- T-IV floats (main_tiv.tex)
@@ -1097,7 +1114,7 @@ def fig_lambda_onestep(g, pa):
             ax.plot(xs[1:], m[1:], color=col[n], marker=mk[n], ls="-", label=f"$N$ = {n:,}".replace(",", "\u2009"))
             ax.plot(xs[:1], m[:1], color=col[n], marker=mk[n], ls="none")
             tag = f"{'Plain' if net == 'plain' else 'Anch'}{VTAG[v]}{NTAG[n]}"
-            macro(f"OneStepLamMax{tag}", sci(float(m[-1])).strip("$"))
+            macro(f"OneStepLamMax{tag}", f"{m[-1]:.4f}")
         ax.axhline(pa[v]["quasi-steady"]["all_t"]["body"], color=INK, lw=0.9, ls="--", label="prior (quasi-steady)")
         ax.axvline(-4.5, color=MUTED, lw=0.6, ls=":")
         ax.set(yscale="log", title={"plain": "PINC network", "anchored": "anchored PINC network"}[net] + f", {v.upper()}")
@@ -1259,6 +1276,7 @@ def main():
     study1_rerun()
     blockset()
     blockset_setup()
+    speed_prediction()
     prior()
     architectures()
     theta()
