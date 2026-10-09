@@ -304,7 +304,7 @@ def blockset():
     chk = load("e30_vdbs_retrain", "e30_assemble")["checks"]
     cell = lambda c: f"{sig2(c['ratio'])} ({c['wins']}/5)"
     macro("VbPriorOneStep", f"{chk['prior_qs_one_step_body']:.4f}")
-    macro("VbPriorFifty", f"{e30['prior']['50']:.3f}"); macro("VbPriorTen", f"{e30['prior']['10']:.3f}")
+    macro("VbPriorFifty", sci(float(e30['prior']['50'])).strip("$")); macro("VbPriorTen", sci(float(e30['prior']['10'])).strip("$"))
     macro("VbPriorOne", sci(float(e30['prior']['1'])).strip("$"))
     # the same metric (E9: mean over test starting states of the body-state RMS) for the prior on M0 and M1 (E31)
     for v in VARIANTS:
@@ -320,6 +320,7 @@ def blockset():
             r, c = e30["results"][n][arm], e30["comparisons"][n][arm]
             tag = f"Vb{VB_TAG[arm]}{NTAG[int(n)]}"
             macro(tag + "Fifty", sci(float(gmean(r["err"]["50"]))).strip("$"))
+            macro(tag + "Ten", sci(float(gmean(r["err"]["10"]))).strip("$"))
             macro(tag + "TransferFifty", sci(float(gmean(r["e29_h50"]))).strip("$"))
             cmp_macros(tag + "VsPrior", dict(ratio=c["vs_prior"]["50"]["ratio"], wins=c["vs_prior"]["50"]["wins"], n=5, p=c["vs_prior"]["50"]["p"]))
             cmp_macros(tag + "VsTransfer", dict(c["vs_e29"], n=5))
@@ -356,6 +357,17 @@ def blockset():
                                          "Models trained on our double-track plant (M0, seeds 5 to 9) and tested without retraining on "
                                          "the Blockset 14-DOF vehicle (E29); references are single predictors from the same starting states. "
                                          "Columns as in Table~\\ref{tab:vb-main}.", "tab:vb-transfer", wide=True))
+    sens_f = os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_lambda_main", "summary.json")
+    if os.path.exists(sens_f):                                       # sensitivity: lambda selected on this vehicle
+        tags = {"vs prior": "Prior", "vs anchored PINC, M0 lambda": "MzeroLam", "vs anchored data-only": "AnchData",
+                "vs grey-box-qs": "GreyQs", "vs data-only": "Data"}
+        for n, r in json.load(open(sens_f))["results"].items():
+            macro(f"VbSens{NTAG[int(n)]}Lam", f"{r['lam']:g}")
+            for k, t in tags.items():
+                for h, ht in (("1", "One"), ("10", "Ten"), ("50", "Fifty")):
+                    c = r["comparisons"][k][h]
+                    if c["p"] == c["p"]:                                     # skip identical models (p is nan)
+                        cmp_macros(f"VbSens{NTAG[int(n)]}Vs{t}{ht}", dict(c, n=5))
     rs = e29["resistance"]
     macro("VbResistConst", f"{rs['blockset']['c0']:.0f}"); macro("VbResistQuad", f"{rs['blockset']['c2']:.3f}")
     macro("VbResistConstOurs", f"{rs['our_plant']['c0']:.0f}"); macro("VbResistQuadOurs", f"{rs['our_plant']['c2']:.3f}")
