@@ -95,7 +95,7 @@ def part_assemble(a, cfg):
         s0 = network_state(S0[ok_drive]).reshape(-1, 10)
         s1 = network_state(S1[ok_drive]).reshape(-1, 10)
         u = I[f"{name}_u"][ok_drive].reshape(-1, 2)
-        t = (I[f"{name}_k"][ok_drive]*float(I[f"{name}_dt"])).reshape(-1)
+        t = (I[f"{name}_k"][ok_drive]*float(np.squeeze(I[f"{name}_dt"]))).reshape(-1)
         need = N_PER_SEED*len(SEEDS) if name == "train" else N_VAL
         if len(t) < need:
             raise RuntimeError(f"{name}: {len(t)} usable trajectories, {need} needed")

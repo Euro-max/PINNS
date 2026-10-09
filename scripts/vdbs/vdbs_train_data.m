@@ -13,7 +13,7 @@ paths = {fullfile(root,'vehconfig'), fullfile(root,'common'), fullfile(root,'pv1
 for k = 1:numel(paths), addpath(genpath(paths{k})); end
 switch mode
   case 'check'
-    S1 = nan(5, 4, 16);
+    load_system('pinc_vdbs14'); S1 = nan(5, 4, 16);
     for i = 1:5, [~, S1(i,:,:)] = one_drive(I, 'train', i); end
     save(fullfile(ex,'train_check.mat'), 'S1'); return
   case 'pilot'
