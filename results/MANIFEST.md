@@ -2609,3 +2609,5 @@ artifact | command | git hash
 `results/e4_timing/e4_s1_anchored/fig_solve_time_vs_N.pdf` | `python experiments/e4_timing.py --run-id e4_s1_anchored --threads 1 --arms pinc --pinc-model results/models/s1v3_anchored_n1000_lam1_s5` | `3286ce6a032e398a4818940fac7fa53566a1be3f`
 `results/e4_timing/e4_s1_anchored/fig_solve_time_vs_N.png` | `python experiments/e4_timing.py --run-id e4_s1_anchored --threads 1 --arms pinc --pinc-model results/models/s1v3_anchored_n1000_lam1_s5` | `3286ce6a032e398a4818940fac7fa53566a1be3f`
 `results/e4_timing/e4_s1_anchored/summary.json` | `python experiments/e4_timing.py --run-id e4_s1_anchored --threads 1 --arms pinc --pinc-model results/models/s1v3_anchored_n1000_lam1_s5` | `3286ce6a032e398a4818940fac7fa53566a1be3f`
+`results/e30_vdbs_retrain/e30_assemble/table_assemble.md` | `python experiments/e30_vdbs_retrain.py --part assemble --run-id e30_assemble` | `a77aeb46624979d28668718052e43eb37e350f4b`
+`results/e30_vdbs_retrain/e30_assemble/summary.json` | `python experiments/e30_vdbs_retrain.py --part assemble --run-id e30_assemble` | `a77aeb46624979d28668718052e43eb37e350f4b`
