@@ -1,12 +1,15 @@
+function vdbs_phase2(sub)
 % Phase 2 of E29: from each saved operating point, run the input sequences of seqs.mat (n, n_seq, n_steps, 2) and
 % record the state after every control period.  Output truth.mat: X (n, n_seq, n_steps, 16) in ISO axes.
+% sub: exchange folder under root (default 'e29'; 'e30val' for the E30 lambda-selection set)
+if nargin < 1, sub = 'e29'; end
 root = 'C:\Users\elgondy\AppData\Local\Temp\claude_vdbs'; cd(root);
 addpath(genpath(fullfile(root,'vehconfig'))); addpath(genpath(fullfile(root,'common'))); addpath(genpath(fullfile(root,'pv14')));
 mdl = 'pinc_vdbs14'; load_system(mdl);
-I = load(fullfile(root,'e29','inputs1.mat')); Q = load(fullfile(root,'e29','seqs.mat')); T = 0.1;
+I = load(fullfile(root,sub,'inputs1.mat')); Q = load(fullfile(root,sub,'seqs.mat')); T = 0.1;
 [n, ns, K, ~] = size(Q.u); X = nan(n, ns, K, 16); t0 = tic;
 for i = 1:n
-  f = fullfile(root,'e29','ops',sprintf('op_%03d.mat',i)); if ~exist(f,'file'), continue; end
+  f = fullfile(root,sub,'ops',sprintf('op_%03d.mat',i)); if ~exist(f,'file'), continue; end
   L = load(f); tw = double(I.tw(i))*T;
   for j = 1:ns
     u = [tw + T*(0:K-1)' squeeze(Q.u(i,j,:,:)); tw + K*T squeeze(Q.u(i,j,K,:))'];
@@ -22,7 +25,8 @@ for i = 1:n
       fprintf('ic %d seq %d failed: %s\n', i, j, e.message);
     end
   end
-  if mod(i,5) == 0, fprintf('%d/%d initial states, %.0f s\n', i, n, toc(t0)); save(fullfile(root,'e29','truth.mat'), 'X'); end
+  if mod(i,5) == 0, fprintf('%d/%d initial states, %.0f s\n', i, n, toc(t0)); save(fullfile(root,sub,'truth.mat'), 'X'); end
 end
-save(fullfile(root,'e29','truth.mat'), 'X');
+save(fullfile(root,sub,'truth.mat'), 'X');
 fprintf('phase 2 done in %.0f s\n', toc(t0));
+end

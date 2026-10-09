@@ -1,13 +1,16 @@
+function vdbs_phase1(sub)
 % Phase 1 of E29: warm-up drives of the Blockset vehicle; saves the operating point and the state at the end of
 % each drive.  Input inputs1.mat: v0 (n), F0 (n), tw (n, steps), cmd (n, K, 2).  Output: ops/op_<i>.mat, ics.mat.
+% sub: exchange folder under root (default 'e29'; 'e30val' for the E30 lambda-selection set)
+if nargin < 1, sub = 'e29'; end
 root = 'C:\Users\elgondy\AppData\Local\Temp\claude_vdbs'; cd(root);
 addpath(genpath(fullfile(root,'vehconfig'))); addpath(genpath(fullfile(root,'common'))); addpath(genpath(fullfile(root,'pv14')));
 mdl = 'pinc_vdbs14'; load_system(mdl); mw = get_param(mdl,'ModelWorkspace');
-I = load(fullfile(root,'e29','inputs1.mat')); n = numel(I.v0); T = 0.1; Rw = 0.316843923235597;
-if ~exist(fullfile(root,'e29','ops'),'dir'), mkdir(fullfile(root,'e29','ops')); end
+I = load(fullfile(root,sub,'inputs1.mat')); n = numel(I.v0); T = 0.1; Rw = 0.316843923235597;
+if ~exist(fullfile(root,sub,'ops'),'dir'), mkdir(fullfile(root,sub,'ops')); end
 V0 = mw.getVariable('VEH'); IC = nan(n, 16); t0 = tic;
 for i = 1:n
-  f = fullfile(root,'e29','ops',sprintf('op_%03d.mat',i));
+  f = fullfile(root,sub,'ops',sprintf('op_%03d.mat',i));
   K = double(I.tw(i)); t = T*(0:K-1)'; u = [t squeeze(I.cmd(i,1:K,:)); K*T squeeze(I.cmd(i,K,:))'];
   V = V0; V.InitialLongVel = I.v0(i);
   in = Simulink.SimulationInput(mdl).setVariable('VEH', V, 'Workspace', mdl).setVariable('omega0', I.v0(i)/Rw, 'Workspace', mdl);
@@ -23,8 +26,10 @@ for i = 1:n
   end
   if mod(i,10) == 0, fprintf('%d/%d drives, %.0f s\n', i, n, toc(t0)); end
 end
-save(fullfile(root,'e29','ics.mat'), 'IC');
+save(fullfile(root,sub,'ics.mat'), 'IC');
 fprintf('phase 1 done in %.0f s\n', toc(t0));
+
+end
 
 function z = lastrow(S)
   % state at the last output time, whatever the layout of the logged arrays

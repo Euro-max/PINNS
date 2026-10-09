@@ -24,6 +24,16 @@ unchanged.  Everything mirrors E28 except the data source:
 --part assemble  network states, data files per seed (results/e30_vdbs_retrain/data/seed<k>.npz) and the checks
 --part train     the 40 runs and registry.json
 --part eval      tables of errors, ratios and paired tests on the E29 test set
+
+Sensitivity analysis (labelled as such; the main result keeps the M0 lambda fixed in advance): lambda selected on
+this vehicle, as in Study 2.  Selection data: training sets for seeds 0-2 (3000 trajectories, drive seed train +
+40000) and a chained validation set (50 starting states x the 10 E9 sequences, drive seed val + 40000; E29
+machinery in <dir>/../e30val).  Grid 0, 1e-4 ... 10 (Study 2's) for the anchored network at N = 100 and 1000,
+seeds 0-2; selection on the mean validation 50-step error.  The anchored PINC network is then trained on seeds
+5-9 with the selected lambda (existing runs reused when it equals 0 or the M0 value) and scored as in --part eval.
+--part inputs_sel   -> <dir>/sel_inputs.mat (then MATLAB: vdbs_train_data('full', 4, 'sel'))
+--part lambda       data files sel_seed<k>.npz, the 42 grid runs, scoring on the chained validation set, selection
+--part lambda_main  anchored PINC on seeds 5-9 with the selected lambda, scored on the E29 test set
 """
 import json
 import os
@@ -50,6 +60,13 @@ ARMS = {"data-only": (0.0, {}), "anchored data-only": (0.0, ANCH), "anchored PIN
         "grey-box-qs": (0.0, {"model.greybox": "true", "model.greybox_prior": "qs"})}
 DATA = os.path.join("results", "e30_vdbs_retrain", "data")
 HZ = (1, 10, 50)
+SEL_SEEDS = (0, 1, 2)
+LAM_GRID = (0.0, 1e-4, 1e-3, 1e-2, 0.1, 1.0, 10.0)
+VAL_DIR = os.path.join(os.path.dirname(DEFAULT_DIR), "e30val")
+
+
+def lam_rid(n, lam, seed):
+    return f"vdbs_lam{lam:g}_anchored_n{n}_s{seed}"
 STATES = ("vx", "vy", "r", "psi")
 
 
@@ -156,15 +173,15 @@ def part_train(a, cfg):
 
 
 # ---------------------------------------------------------------- evaluation on the E29 test set
-def part_eval(a, cfg):
+def make_scorer(D, cfg):
+    """score(rollout) -> ({h: error}, {h: per-state error}) on the chained set in folder D (ics, truth, seqs)."""
     import scipy.io as sio
     import tensorflow as tf
-    from pinc.model import PINCNet
-    from pinc.mpc import RK4Predictor, make_predictor
-    D = os.path.join(RESULTS_DIR, "e29_vdbs_transfer", "data")
     ic = sio.loadmat(os.path.join(D, "ics.mat"))["IC"]
     X = sio.loadmat(os.path.join(D, "truth.mat"))["X"]
     u = sio.loadmat(os.path.join(D, "seqs.mat"))["u"]
+    keep = np.all(np.isfinite(ic), axis=1) & np.all(np.isfinite(X), axis=(1, 2, 3))
+    ic, X, u = ic[keep], X[keep], u[keep]
     n_ic = len(ic)
     s0r = np.repeat(network_state(ic), N_SEQ, axis=0)
     ur = u.reshape(-1, N_STEPS, 2)
@@ -176,7 +193,14 @@ def part_eval(a, cfg):
         tot = {h: float(np.mean(np.sqrt(np.mean(e2[:, :, h - 1, :], axis=(1, 2))))) for h in HZ}        # as E9 / E29
         per = {h: np.sqrt(np.mean(e2[:, :, h - 1, :], axis=(0, 1))).tolist() for h in HZ}
         return tot, per
+    return score, n_ic
 
+
+def part_eval(a, cfg):
+    import tensorflow as tf
+    from pinc.model import PINCNet
+    from pinc.mpc import RK4Predictor, make_predictor
+    score, _ = make_scorer(os.path.join(RESULTS_DIR, "e29_vdbs_transfer", "data"), cfg)
     prior, prior_per = score(RK4Predictor(cfg, model="qs").rollout_batch)
     reg = json.load(open(os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_train", "registry.json")))["arms"]
     e29 = json.load(open(os.path.join(RESULTS_DIR, "e29_vdbs_transfer", "e29_eval", "summary.json")))["models"]
@@ -236,17 +260,158 @@ def part_eval(a, cfg):
     return dict(prior=prior, prior_per_state=prior_per, results=res, comparisons=cmp_), text
 
 
+# ---------------------------------------------------------------- sensitivity: lambda selected on this vehicle
+def part_inputs_sel(a, cfg):
+    import scipy.io as sio
+    p = plant_hf.make_params(cfg.params, "M0")
+    rng = np.random.default_rng(cfg.seeds.train + 40000)
+    n_states = N_PER_SEED*len(SEL_SEEDS)
+    nd = int(np.ceil(n_states/PER_DRIVE*MARGIN))
+    v0 = rng.uniform(cfg.box_train.vx[0], cfg.box_train.vx[1], nd)
+    F0 = np.array([plant_hf.free_rolling_state(v, p)[10] for v in v0])
+    cmd = data_hf._commands(rng, nd, DRIVE_STEPS, cfg.T, F0, np.asarray(cfg.u_min), np.asarray(cfg.u_max), 0.3, v0,
+                            p["lf"] + p["lr"], 9.0)
+    pick = np.sort(np.stack([rng.choice(np.arange(RUN_IN, DRIVE_STEPS), size=PER_DRIVE, replace=False) for _ in range(nd)]), axis=1)
+    u = rng.uniform(cfg.u_min, cfg.u_max, size=(nd, PER_DRIVE, 2))
+    k = rng.integers(1, int(round(cfg.T/cfg.sim.dt_plant)) + 1, size=(nd, PER_DRIVE))
+    d = dict(v0=v0, F0=F0, cmd=cmd, pick=pick.astype(float), u=u, k=k.astype(float), dt=cfg.sim.dt_plant)
+    sio.savemat(os.path.join(a.dir, "sel_inputs.mat"), {f"train_{kk}": v for kk, v in d.items()})
+    return dict(n_drives=nd), f"wrote {a.dir}/sel_inputs.mat ({nd} drives for {n_states} starting states)\n"
+
+
+def part_lambda(a, cfg):
+    import scipy.io as sio
+    import tensorflow as tf
+    from pinc.jobs import run_jobs
+    from pinc.model import PINCNet
+    from pinc.mpc import make_predictor
+    R = sio.loadmat(os.path.join(a.dir, "sel_data.mat"))
+    I = sio.loadmat(os.path.join(a.dir, "sel_inputs.mat"))
+    env = data_hf.ENVELOPE
+    S0, S1 = R["train_S0"], R["train_S1"]
+    ok = np.all(np.isfinite(S0), axis=(1, 2)) & np.all(np.isfinite(S1), axis=(1, 2))
+    ok &= np.all((S0[..., 0] > env["vx_min"]) & (np.abs(S0[..., 1]) < env["vy_max"]) & (np.abs(S0[..., 2]) < env["r_max"]), axis=1)
+    s0, s1 = network_state(S0[ok]).reshape(-1, 10), network_state(S1[ok]).reshape(-1, 10)
+    u = I["train_u"][ok].reshape(-1, 2)
+    t = (I["train_k"][ok]*float(np.squeeze(I["train_dt"]))).reshape(-1)
+    need = N_PER_SEED*len(SEL_SEEDS)
+    if len(t) < need:
+        raise RuntimeError(f"{len(t)} usable selection trajectories, {need} needed")
+    val = np.load(os.path.join(ROOT, DATA, f"seed{SEEDS[0]}.npz"))                    # the E30 validation set
+    for j, seed in enumerate(SEL_SEEDS):
+        sl = slice(j*N_PER_SEED, (j + 1)*N_PER_SEED)
+        np.savez(os.path.join(ROOT, DATA, f"sel_seed{seed}.npz"), pool=s0[:need],
+                 train_t=t[sl], train_s0=s0[sl], train_u=u[sl], train_s=s1[sl],
+                 **{f"val_{k}": val[f"val_{k}"] for k in ("t", "s0", "u", "s")})
+    jobs = []
+    for n in SIZES:
+        for lam in LAM_GRID:
+            for seed in SEL_SEEDS:
+                ov = dict(overrides(n, lam, seed, cfg), **ANCH)
+                ov.update({"train.data_file": os.path.join(DATA, f"sel_seed{seed}.npz"), "train.n_val": N_VAL})
+                jobs.append((lam_rid(n, lam, seed), seed, ov))
+    run_jobs(jobs, a.slots, a.config, a.overrides, cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
+    score, n_val_ic = make_scorer(VAL_DIR, cfg)
+    val_err, best = {}, {}
+    for n in SIZES:
+        for lam in LAM_GRID:
+            for seed in SEL_SEEDS:
+                net = PINCNet.load_from(os.path.join(RESULTS_DIR, "models", lam_rid(n, lam, seed)))
+                tot, _ = score(make_predictor(net, cfg).rollout_batch)
+                val_err.setdefault(str(n), {}).setdefault(f"{lam:g}", {h: [] for h in map(str, HZ)})
+                for h in HZ:
+                    val_err[str(n)][f"{lam:g}"][str(h)].append(tot[h])
+                tf.keras.backend.clear_session()
+        best[str(n)] = min(LAM_GRID, key=lambda l: np.mean(val_err[str(n)][f"{l:g}"]["50"]))
+    rows = [[n, f"{float(l):g}"] + [f"{np.mean(v[h]):.4g}" for h in map(str, HZ)] + ["selected" if float(l) == best[n] else ""]
+            for n in map(str, SIZES) for l, v in val_err[n].items()]
+    text = (f"# E30 sensitivity: lambda selected on the Blockset vehicle (anchored network, seeds 0-2; chained validation set "
+            f"of {n_val_ic} starting states x {N_SEQ} sequences; mean over seeds)\n\nselected: " +
+            ", ".join(f"N = {n}: {best[n]:g}" for n in best) + "\n\n" +
+            md_table(["N", "lambda", "val 1 step", "val 10 steps", "val 50 steps", ""], rows))
+    return dict(selected=best, val=val_err, n_val_ic=n_val_ic), text
+
+
+def part_lambda_main(a, cfg):
+    import tensorflow as tf
+    from pinc.jobs import run_jobs
+    from pinc.model import PINCNet
+    from pinc.mpc import make_predictor
+    sel = {int(n): float(l) for n, l in load_json(os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_lambda", "summary.json"))["selected"].items()}
+    reg = load_json(os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_train", "registry.json"))["arms"]
+    tmpl, jobs = {}, []
+    for n in SIZES:
+        if sel[n] == 0.0:
+            tmpl[n] = reg[str(n)]["anchored data-only"]                                    # the same model
+        elif sel[n] == LAM[n]:
+            tmpl[n] = reg[str(n)]["anchored PINC"]
+        else:
+            tmpl[n] = f"vdbs_anchored_PINC_lam{sel[n]:g}_n{n}" + "_s{seed}"
+            for seed in SEEDS:
+                ov = dict(overrides(n, sel[n], seed, cfg), **ANCH)
+                ov.update({"train.data_file": os.path.join(DATA, f"seed{seed}.npz"), "train.n_val": N_VAL})
+                jobs.append((tmpl[n].format(seed=seed), seed, ov))
+    if jobs:
+        run_jobs(jobs, a.slots, a.config, a.overrides, cpu_threads=a.cpu_threads, gpu_threads=a.gpu_threads)
+    score, _ = make_scorer(os.path.join(RESULTS_DIR, "e29_vdbs_transfer", "data"), cfg)
+    main = load_json(os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_eval", "summary.json"))
+    prior = main["prior"]
+    res, rows = {}, []
+    for n in SIZES:
+        err = {str(h): [] for h in HZ}
+        for seed in SEEDS:
+            net = PINCNet.load_from(os.path.join(RESULTS_DIR, "models", tmpl[n].format(seed=seed)))
+            tot, _ = score(make_predictor(net, cfg).rollout_batch)
+            for h in HZ:
+                err[str(h)].append(tot[h])
+            tf.keras.backend.clear_session()
+        m = main["results"][str(n)]
+        cmp_ = {"vs prior": {str(h): _vs_const(err[str(h)], prior[str(h)]) for h in HZ},
+                "vs anchored PINC, M0 lambda": {str(h): _paired(err[str(h)], m["anchored PINC"]["err"][str(h)]) for h in HZ},
+                "vs anchored data-only": {str(h): _paired(err[str(h)], m["anchored data-only"]["err"][str(h)]) for h in HZ},
+                "vs grey-box-qs": {str(h): _paired(err[str(h)], m["grey-box-qs"]["err"][str(h)]) for h in HZ},
+                "vs data-only": {str(h): _paired(err[str(h)], m["data-only"]["err"][str(h)]) for h in HZ}}
+        res[str(n)] = dict(lam=sel[n], run=tmpl[n], err=err, comparisons=cmp_)
+        cell = lambda c: f"{c['ratio']:.2f} ({c['wins']}/{len(SEEDS)}, p = {c['p']:.2g})"
+        for k, v in cmp_.items():
+            rows.append([n, f"{sel[n]:g}", k] + [cell(v[str(h)]) for h in HZ])
+    text = ("# E30 sensitivity: anchored PINC with lambda selected on the Blockset vehicle, seeds 5-9, E29 test set\n\n"
+            "Ratios: the other predictor's error / this model's error (above 1: this model is better), geometric mean over "
+            "seeds, seeds better, t-test on log errors.\n\n" +
+            md_table(["N", "lambda", "comparison"] + [f"{h} steps" for h in HZ], rows))
+    return dict(results=res), text
+
+
+def load_json(path):
+    with open(path) as fh:
+        return json.load(fh)
+
+
+def _paired(x, y):
+    x, y = np.log(np.asarray(x)), np.log(np.asarray(y))
+    d = y - x
+    p = float(stats.ttest_rel(y, x).pvalue) if np.std(d) > 0 else float("nan")
+    return dict(ratio=float(np.exp(np.mean(d))), wins=int(np.sum(d > 0)), p=p)
+
+
+def _vs_const(x, c):
+    lr = np.log(c) - np.log(np.asarray(x))
+    p = float(stats.ttest_1samp(lr, 0.0).pvalue) if np.std(lr) > 0 else float("nan")
+    return dict(ratio=float(np.exp(np.mean(lr))), wins=int(np.sum(lr > 0)), p=p)
+
+
 def main(argv=None):
     from pinc.jobs import add_slot_args
     ap = base_parser(__doc__)
     add_slot_args(ap)
-    ap.add_argument("--part", required=True, choices=("inputs", "assemble", "train", "eval"))
+    ap.add_argument("--part", required=True, choices=("inputs", "assemble", "train", "eval", "inputs_sel", "lambda", "lambda_main"))
     ap.add_argument("--dir", default=os.path.join(os.path.dirname(DEFAULT_DIR), "e30"), help="exchange folder shared with MATLAB")
     a = ap.parse_args(argv)
     a.config = os.path.join(ROOT, "configs", "hf_m0.yaml")
     _, a.run_dir = start("e30_vdbs_retrain", a)
     cfg = load_config(a.config, a.overrides)
-    out, text = dict(inputs=part_inputs, assemble=part_assemble, train=part_train, eval=part_eval)[a.part](a, cfg)
+    out, text = dict(inputs=part_inputs, assemble=part_assemble, train=part_train, eval=part_eval, inputs_sel=part_inputs_sel,
+                     lambda_=part_lambda, lambda_main=part_lambda_main)[a.part.replace("lambda", "lambda_") if a.part == "lambda" else a.part](a, cfg)
     art = write_text(os.path.join(a.run_dir, f"table_{a.part}.md"), text)
     finish(a.run_dir, cfg, a.seed, dict(part=a.part, **out), [art])
     print(text)

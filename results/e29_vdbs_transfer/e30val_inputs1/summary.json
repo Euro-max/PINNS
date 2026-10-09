@@ -1,0 +1,9 @@
+{
+  "ic_seed": 40001,
+  "n_ic": 50,
+  "part": "inputs1",
+  "warm_steps": [
+    5,
+    30
+  ]
+}

@@ -1,4 +1,4 @@
-function vdbs_train_data(mode, nworkers)
+function vdbs_train_data(mode, nworkers, tag)
 % E30 training data on the Blockset vehicle (pinc_vdbs14).  For every drive of train_inputs.mat (written by
 % experiments/e30_vdbs_retrain.py --part inputs): drive from free rolling at v0 with the drive commands, stop at
 % each of the four sampled times (saving the operating point), and from there hold one input for k*dt, reading
@@ -6,9 +6,12 @@ function vdbs_train_data(mode, nworkers)
 %   mode 'pilot'  first 12 train drives (48 trajectories), reports the time per drive and the projected total
 %   mode 'full'   all train and val drives, in blocks of 100 saved as they finish (a rerun resumes)
 %   mode 'check'  re-simulates the first 5 train drives serially -> train_check.mat
+%   tag           optional input set: '<tag>_inputs.mat' (train drives only) -> '<tag>_data.mat' (E30 lambda sensitivity: 'sel')
 root = 'C:\Users\elgondy\AppData\Local\Temp\claude_vdbs'; cd(root);
-ex = fullfile(root,'e30'); I = load(fullfile(ex,'train_inputs.mat'));
 if nargin < 2, nworkers = 4; end
+if nargin < 3, tag = ''; end
+ex = fullfile(root,'e30');
+if isempty(tag), I = load(fullfile(ex,'train_inputs.mat')); pre = ''; else, I = load(fullfile(ex,[tag '_inputs.mat'])); pre = [tag '_']; end
 paths = {fullfile(root,'vehconfig'), fullfile(root,'common'), fullfile(root,'pv14')};
 for k = 1:numel(paths), addpath(genpath(paths{k})); end
 switch mode
@@ -19,7 +22,8 @@ switch mode
   case 'pilot'
     sets = {'train'}; limit = 12;
   otherwise
-    sets = {'train','val'}; limit = inf;
+    if isempty(tag), sets = {'train','val'}; else, sets = {'train'}; end
+    limit = inf;
 end
 p = gcp('nocreate'); if isempty(p), p = parpool('Processes', nworkers); end
 spmd
@@ -31,7 +35,7 @@ end
 for s = 1:numel(sets)
   nm = sets{s}; nd = min(numel(I.([nm '_v0'])), limit); blk = 100;
   for b0 = 1:blk:nd
-    f = fullfile(ex, sprintf('%s_block_%04d.mat', nm, b0));
+    f = fullfile(ex, sprintf('%s%s_block_%04d.mat', pre, nm, b0));
     if exist(f, 'file') && ~strcmp(mode,'pilot'), continue; end
     ids = b0:min(b0 + blk - 1, nd); A0 = nan(numel(ids), 4, 16); A1 = A0; t0 = tic;
     parfor j = 1:numel(ids)
@@ -50,11 +54,11 @@ for s = 1:numel(sets)
   % gather the blocks
   S0 = nan(numel(I.([nm '_v0'])), 4, 16); S1 = S0;
   for b0 = 1:blk:nd
-    B = load(fullfile(ex, sprintf('%s_block_%04d.mat', nm, b0))); S0(B.ids,:,:) = B.S0; S1(B.ids,:,:) = B.S1;
+    B = load(fullfile(ex, sprintf('%s%s_block_%04d.mat', pre, nm, b0))); S0(B.ids,:,:) = B.S0; S1(B.ids,:,:) = B.S1;
   end
   R.([nm '_S0']) = S0; R.([nm '_S1']) = S1; %#ok<STRNU>
 end
-save(fullfile(ex,'train_data.mat'), '-struct', 'R');
+if isempty(tag), save(fullfile(ex,'train_data.mat'), '-struct', 'R'); else, save(fullfile(ex,[tag '_data.mat']), '-struct', 'R'); end
 fprintf('all done\n');
 end
 

@@ -2695,3 +2695,7 @@ artifact | command | git hash
 `results/e30_vdbs_retrain/e30_train/summary.json` | `python experiments/e30_vdbs_retrain.py --part train --run-id e30_train --slots gpu,gpu,cpu` | `609b23411375d5c43cb787c99eecb7add4411802`
 `results/e30_vdbs_retrain/e30_eval/table_eval.md` | `python experiments/e30_vdbs_retrain.py --part eval --run-id e30_eval` | `080eb39853ec1a13d59e14833a8858f23a6ffd86`
 `results/e30_vdbs_retrain/e30_eval/summary.json` | `python experiments/e30_vdbs_retrain.py --part eval --run-id e30_eval` | `080eb39853ec1a13d59e14833a8858f23a6ffd86`
+`results/e29_vdbs_transfer/e30val_inputs1/table_inputs1.md` | `python experiments/e29_vdbs_transfer.py --part inputs1 --dir /mnt/c/Users/elgondy/AppData/Local/Temp/claude_vdbs/e30val --n-ic 50 --ic-seed 40001 --run-id e30val_inputs1` | `9fee8697cf279768d96544d3b52cfe4c99c091ff-dirty`
+`results/e29_vdbs_transfer/e30val_inputs1/summary.json` | `python experiments/e29_vdbs_transfer.py --part inputs1 --dir /mnt/c/Users/elgondy/AppData/Local/Temp/claude_vdbs/e30val --n-ic 50 --ic-seed 40001 --run-id e30val_inputs1` | `9fee8697cf279768d96544d3b52cfe4c99c091ff-dirty`
+`results/e30_vdbs_retrain/e30_inputs_sel/table_inputs_sel.md` | `python experiments/e30_vdbs_retrain.py --part inputs_sel --run-id e30_inputs_sel` | `9fee8697cf279768d96544d3b52cfe4c99c091ff-dirty`
+`results/e30_vdbs_retrain/e30_inputs_sel/summary.json` | `python experiments/e30_vdbs_retrain.py --part inputs_sel --run-id e30_inputs_sel` | `9fee8697cf279768d96544d3b52cfe4c99c091ff-dirty`

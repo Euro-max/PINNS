@@ -46,15 +46,15 @@ def network_state(z):
 def part_inputs1(a, cfg):
     import scipy.io as sio
     p = plant_hf.make_params(cfg.params, "M0")
-    rng = np.random.default_rng(cfg.seeds.test + 2902)
-    v0 = rng.uniform(cfg.box_train.vx[0], cfg.box_train.vx[1], N_IC)
+    rng = np.random.default_rng(a.ic_seed)
+    v0 = rng.uniform(cfg.box_train.vx[0], cfg.box_train.vx[1], a.n_ic)
     F0 = np.array([plant_hf.free_rolling_state(v, p)[10] for v in v0])
-    tw = rng.integers(WARM_STEPS[0], WARM_STEPS[1], N_IC)
-    cmd = data_hf._commands(rng, N_IC, WARM_STEPS[1], cfg.T, F0, np.asarray(cfg.u_min), np.asarray(cfg.u_max), 0.3, v0,
+    tw = rng.integers(WARM_STEPS[0], WARM_STEPS[1], a.n_ic)
+    cmd = data_hf._commands(rng, a.n_ic, WARM_STEPS[1], cfg.T, F0, np.asarray(cfg.u_min), np.asarray(cfg.u_max), 0.3, v0,
                             p["lf"] + p["lr"], 9.0)
     os.makedirs(a.dir, exist_ok=True)
     sio.savemat(os.path.join(a.dir, "inputs1.mat"), dict(v0=v0, F0=F0, tw=tw.astype(float), cmd=cmd))
-    return dict(n_ic=N_IC, warm_steps=list(WARM_STEPS)), f"wrote {a.dir}/inputs1.mat ({N_IC} warm-up drives)\n"
+    return dict(n_ic=a.n_ic, ic_seed=a.ic_seed, warm_steps=list(WARM_STEPS)), f"wrote {a.dir}/inputs1.mat ({a.n_ic} warm-up drives)\n"
 
 
 def part_inputs2(a, cfg):
@@ -64,7 +64,7 @@ def part_inputs2(a, cfg):
     vx0 = np.where(ok, ic[:, 0], 15.0)
     u = control_sequences(N_SEQ, N_STEPS, cfg, np.random.default_rng(4242), vx0)       # the E9 sequences
     sio.savemat(os.path.join(a.dir, "seqs.mat"), dict(u=u))
-    return dict(n_ok=int(ok.sum())), f"wrote {a.dir}/seqs.mat: {N_SEQ} sequences for {int(ok.sum())} of {N_IC} initial states\n"
+    return dict(n_ok=int(ok.sum())), f"wrote {a.dir}/seqs.mat: {N_SEQ} sequences for {int(ok.sum())} of {len(ok)} initial states\n"
 
 
 def horizon_errors(pred_body, truth_body, S_x):
@@ -187,10 +187,14 @@ def main(argv=None):
     ap = base_parser(__doc__)
     ap.add_argument("--part", required=True, choices=("inputs1", "inputs2", "eval"))
     ap.add_argument("--dir", default=DEFAULT_DIR, help="exchange folder shared with MATLAB")
+    ap.add_argument("--n-ic", type=int, default=N_IC, help="starting states (--part inputs1)")
+    ap.add_argument("--ic-seed", type=int, default=None, help="seed of the warm-up drives (default: test seed + 2902, the E29 test set)")
     a = ap.parse_args(argv)
     a.config = os.path.join(ROOT, "configs", "hf_m0.yaml")
     _, run_dir = start("e29_vdbs_transfer", a)
     cfg = load_config(a.config, a.overrides)
+    if a.ic_seed is None:
+        a.ic_seed = cfg.seeds.test + 2902
     out, text = dict(inputs1=part_inputs1, inputs2=part_inputs2, eval=part_eval)[a.part](a, cfg)
     art = write_text(os.path.join(run_dir, f"table_{a.part}.md"), text)
     finish(run_dir, cfg, a.seed, dict(part=a.part, **out), [art])
