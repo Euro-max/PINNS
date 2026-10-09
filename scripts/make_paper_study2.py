@@ -163,19 +163,23 @@ def comparisons(arms, prefix=""):
 
 def table_main(arms):
     order = ["data-only", "PINC", "PINC-ablation", "A8 data-only", "A8 PINC", "grey-box-qs", "grey-box"]
+    pa = load("e25_prior_accuracy", "e25")["results"]
     for v in VARIANTS:
-        rows = []
+        pq = load("e31_speed_prediction", f"e31_priors_{v}")["priors"]["quasi-steady prior"]
+        rows = [["--", "simplified physics alone", sci(pa[v]["quasi-steady"]["all_t"]["body"]), sci(float(pq["10"])),
+                 sci(float(pq["50"])), "--"]]
         for n in sorted(arms[v]):
             first = True
             for arm in [a for a in order if a in arms[v][n]]:
                 val = arms[v][n][arm]
-                rows.append([f"{n:,}".replace(",", "\\,") if first else "", LABEL[arm]] + [ci_cell(val[m]) for m in ("one_step", "h10", "h50")])
+                rows.append([f"{n:,}".replace(",", "\\,") if first else "", LABEL[arm]] + [ci_cell(val[m]) for m in ("one_step", "h10", "h50", "h50_extrap")])
                 first = False
         cap = (f"Test error of the learned models on {v.upper()} (NRMSE of the body states $v_x, v_y, r, \\psi$), geometric mean [95\\,\\% "
-               "confidence interval] over five training seeds (5 to 9, not used in any selection); one step and chained predictions "
-               "of 10 and 50 control periods. $N$: training trajectories. Physics weights as selected on the validation set "
-               "(Table~\\ref{tab:lam-sel}).")
-        write(f"tab_s2_main_{v}.tex", tabular("llccc", ["$N$", "model", "one step", "10 steps", "50 steps"], rows, cap,
+               "confidence interval] over five training seeds (5 to 9, not used in any selection). One period: the one-period test "
+               "trajectories; 10 and 50 steps: the 50-step test sequences after 10 and 50 chained control periods; extrap.: the same "
+               "after 50 periods from initial speeds of \\HfBoxExtrapVx~m/s, outside the training range. $N$: training trajectories. "
+               "Physics weights as selected on the validation set (Table~\\ref{tab:lambda}). Simplified physics: the quasi-steady prior integrated with RK4.")
+        write(f"tab_s2_main_{v}.tex", tabular("llcccc", ["$N$", "model", "one period", "10 steps", "50 steps", "50 steps, extrap."], rows, cap,
                                                f"tab:s2-main-{v}", wide=True))
 
 
@@ -213,6 +217,9 @@ S1_TAG = {"data-only": "Data", "PINC": "Pinc", "anchored data-only": "AnchData",
           "NMPC-exact": "NmpcExact", "LTV": "Ltv"}
 S1_N = {100: "Hundred", 1000: "Thousand", 10000: "TenK", 20000: "TwentyK"}
 S1_MT = dict(one_step="One", deriv="Deriv", h10="Ten", h50="Fifty", h50_extrap="Extrap")
+
+
+S1_SHOW = {"NMPC-exact": "NMPC, exact model", "LTV": "LTV-MPC"}
 
 
 def study1_rerun():
@@ -265,7 +272,7 @@ def study1_rerun():
                 c = cl_compare(R, (arm, n), ("NMPC-exact", 0), mt)
                 cmp_macros(f"SoneClCmp{S1_N[n]}{S1_TAG[arm]}VsNmpcExact{t}", c)
                 cells.append(f"{sig2(c['ratio'])} ({c['wins']}/{c['n']})")
-        rows.append([arm if not n else arm.replace("PINC", "PINC network").replace("data-only", "data-only network"),
+        rows.append([S1_SHOW.get(arm, arm) if not n else arm.replace("PINC", "PINC network").replace("data-only", "data-only network"),
                      "--" if n == 0 else f"{n:,}".replace(",", "\\,"), f"{lost}/{len(runs)}",
                      f"{med['lane']:.3f}", f"{med['sin']:.3f}", f"{med['iso']:.2f}"] + (cells if cells else ["--"]*3))
     write("tab_s1_closed.tex", tabular("llcccc|ccc", ["controller", "$N$", "lost", "lane $Y$", "sin. $v_x$", "ISO peak",
@@ -280,7 +287,7 @@ def study1_rerun():
     rows = []
     for lab, (run, arm) in t1.items():
         sv = load("e4_timing", run)["solve"][arm]
-        rows.append([lab] + [f"{sv[str(n)]['median']*1e3:.1f} [{sv[str(n)]['p95']*1e3:.1f}]" for n in (5, 10, 20, 40)])
+        rows.append([S1_SHOW.get(lab, lab)] + [f"{sv[str(n)]['median']*1e3:.1f} [{sv[str(n)]['p95']*1e3:.1f}]" for n in (5, 10, 20, 40)])
         for n, w in ((10, "Ten"), (40, "Forty")):
             macro(f"SoneSolve{''.join(x.capitalize() for x in lab.replace('-', ' ').split()[:2])}{w}", f"{sv[str(n)]['median']*1e3:.1f}")
     write("tab_s1_timing.tex", tabular("lcccc", ["controller", "$N_\\mathrm{h}=5$", "10", "20", "40"], rows,
@@ -356,7 +363,7 @@ def blockset():
     write("tab_vb_transfer.tex", tabular("llccc", ["predictor", "$N$", "10 steps", "50 steps", "vs prior"], rows,
                                          "Models trained on our double-track plant (M0, seeds 5 to 9) and tested without retraining on "
                                          "the Blockset 14-DOF vehicle (E29); references are single predictors from the same starting states. "
-                                         "Columns as in Table~\\ref{tab:vb-main}.", "tab:vb-transfer", wide=True))
+                                         "Columns as in Table~\\ref{tab:blockset}.", "tab:vb-transfer", wide=True))
     sens_f = os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_lambda_main", "summary.json")
     if os.path.exists(sens_f):                                       # sensitivity: lambda selected on this vehicle
         tags = {"vs prior": "Prior", "vs anchored PINC, M0 lambda": "MzeroLam", "vs anchored data-only": "AnchData",
@@ -412,6 +419,39 @@ def speed_prediction():
         macro(f"Spd{VTAG[v]}GreyRatioMin", f"{min(m['vx_10'] for m in grey)/pv:.1f}")
         macro(f"Spd{VTAG[v]}GreyRatioMax", f"{max(m['vx_10'] for m in grey)/pv:.1f}")
         macro(f"Spd{VTAG[v]}NetBiasMax", f"{max(abs(m['vx_bias_10']) for m in plain):.2f}")
+
+
+def supplement_tables():
+    """Supplement-only tables: E31 per-state errors over the MPC horizon, and E30 per-state errors on the Blockset vehicle."""
+    st = ("v_x", "v_y", "r", "\\psi")
+    rows = []
+    for v in VARIANTS:
+        s = load("e31_speed_prediction", f"e31_{v}")
+        refs = [(f"simplified physics, {k}", "--", s["references"][k]) for k in ("full prior", "quasi-steady prior")]
+        nets = [(LABEL.get(E28_NAMES.get(a, a), a), f"{int(n):,}".replace(",", "\\,"), r["mean"])
+                for n, d in s["models"].items() for a, r in d.items()]
+        rows.append([f"\\multicolumn{{7}}{{l}}{{\\emph{{{v.upper()}}}}}"])
+        for name, n, m in refs + nets:
+            rows.append([name, n] + [sci(m[f"{k}_10"]) for k in ("vx", "vy", "r", "psi")] + [f"${m['vx_bias_10']:+.2g}$"])
+    write("tab_sup_speed.tex", tabular("llccccc", ["prediction model", "$N$"] + [f"${x}$" for x in st] + ["$v_x$ bias [m/s]"], rows,
+                                       "Error of the prediction models of the closed loop after 10 chained control periods (the MPC "
+                                       "horizon), per body state, on the 50-step test sequences of each variant (100 starting states, "
+                                       "ten input sequences): RMS of the scaled error, and the mean signed speed error in m/s (predicted "
+                                       "minus true). Learned models: arithmetic mean over five training seeds (5 to 9).",
+                                       "tab:sup-speed", wide=True))
+    e30 = load("e30_vdbs_retrain", "e30_eval")
+    rows = [["simplified physics alone"] + [sci(x) for h in ("10", "50") for x in e30["prior_per_state"][h]]]
+    for n in ("100", "1000"):
+        rows.append([f"\\multicolumn{{9}}{{l}}{{\\emph{{$N = {int(n):,}$}}}}".replace(",", "\\,")])
+        for arm in VB_ARMS:
+            ps = e30["results"][n][arm]["per_state"]
+            rows.append([VB_LABEL[arm]] + [sci(x) for h in ("10", "50") for x in ps[h]])
+    hdr = ["model"] + [f"${x}$, {h}" for h in ("10", "50") for x in st]
+    write("tab_sup_vb_state.tex", tabular("lcccc|cccc", hdr, rows,
+                                          "Per-state test error on the Blockset 14-DOF vehicle after 10 and 50 chained control periods "
+                                          "(E30, models trained on that vehicle with the physics weights of M0): RMS of the scaled error "
+                                          "over the 50-step test sequences, arithmetic mean over five training seeds (5 to 9).",
+                                          "tab:sup-vb-state", wide=True))
 
 
 # ---------------------------------------------------------------- T-IV floats (main_tiv.tex)
@@ -998,6 +1038,8 @@ def params_table():
         ["horizon", "$N_\\mathrm{h}$", str(c1.mpc.N)],
         ["weights", "$Q = P$, $R$, $R_\\Delta$", f"{L(c1.mpc.Q)}, {L(c1.mpc.R)}, {L(c1.mpc.R_delta)}"],
         ["yaw-rate limit", "$r_{\\max}$, $w_r$", f"{c1.mpc.r_max:g}\\,rad/s, {c1.mpc.w_rmax:g}"],
+        ["measurement noise (standard deviation, units of the state), $[v_x, v_y, r, \\psi, X, Y]$", "", L(c1.sim.noise_sigma) + " (both studies)"],
+        ["measurement noise, $[\\omega_{fl}, \\omega_{fr}, \\omega_{rl}, \\omega_{rr}, F, \\delta]$", "", L(c2.sim.noise_sigma[6:]) + " (Study 2)"],
     ]
     body = " \\\\\n".join(" & ".join(r) for r in rows)
     write("tab_params.tex", "\\begin{table}[htbp]\\centering\\small\n\\caption{Parameters of the plants, networks and "
@@ -1257,23 +1299,25 @@ def fig_speed(arms):
 
 
 def fig_dlc():
+    """One ISO 3888-2 run on M1 from the main closed loop (E18 s2, training seed 5, noise seed 0), N = 1000."""
     plt = _plt()
-    d = os.path.join(RESULTS_DIR, "e18_hf_closed_loop", "e18_m1", "runs")
-    files = {"NMPC-true": "NMPC-true_N0_mNone_k0", "NMPC-prior": "NMPC-prior_N0_mNone_k0", "PINC": "PINC_N100_m0_k0",
-             "A8 PINC": "A8-PINC_N100_m0_k0", "grey-box-qs": "grey-box-qs_N100_m0_k0"}
-    lab = {"NMPC-true": "NMPC, true model", "NMPC-prior": "NMPC, full prior", "PINC": "PINC network",
-           "A8 PINC": "anchored PINC network", "grey-box-qs": "grey-box, quasi-steady prior"}
-    logs = {k: np.load(os.path.join(d, f"double_lane_change_{f}.npz")) for k, f in files.items()}
+    d = os.path.join(RESULTS_DIR, "e18_hf_closed_loop", "e18_s2_m1", "runs")
+    files = {"NMPC-true": "NMPC-true_N0_mNone_k0", "NMPC-qs": "NMPC-qs_N0_mNone_k0", "A8 PINC": "anchored PINC_N1000_m5_k0",
+             "A8 data-only": "anchored data-only_N1000_m5_k0", "grey-box-qs": "grey-box-qs_N1000_m5_k0"}
+    lab = {"NMPC-true": "NMPC, true model", "NMPC-qs": "NMPC, quasi-steady prior", "A8 PINC": "anchored PINC network",
+           "A8 data-only": "anchored data-only network", "grey-box-qs": "grey-box, quasi-steady prior"}
+    sty = dict(STYLE, **{"NMPC-qs": ("#008300", "P", "--"), "A8 data-only": ("#6b6b6b", "x", ":")})
+    logs = {k: np.load(os.path.join(d, f"iso_lane_change_{f}.npz")) for k, f in files.items()}
     fig, axes = plt.subplots(3, 1, figsize=(6.4, 5.2), sharex=True)
     ref = logs["NMPC-true"]
     X = ref["ref"][:, 4]
     axes[0].plot(ref["t"], ref["ref"][:, 5], color=INK, lw=1, ls="--", label="reference")
     for k, lg in logs.items():
-        col, _, ls = STYLE[k]
+        col, _, ls = sty[k]
         axes[0].plot(lg["t"], lg["x"][:, 5], color=col, ls=ls, label=lab[k])
-        axes[1].plot(lg["t"], lg["x"][:, 0] - lg["ref"][:, 0], color=col, ls=ls)
+        axes[1].plot(lg["t"], lg["x"][:, 5] - lg["ref"][:, 5], color=col, ls=ls)
         axes[2].step(lg["t"][:-1], lg["u"][:, 1], where="post", color=col, ls=ls)
-    axes[0].set_ylabel("$Y$ [m]"); axes[1].set_ylabel("$v_x$ error [m/s]"); axes[2].set_ylabel("$\\delta$ command [rad]")
+    axes[0].set_ylabel("$Y$ [m]"); axes[1].set_ylabel("lateral error [m]"); axes[2].set_ylabel("$\\delta$ command [rad]")
     axes[-1].set_xlabel("time [s]")
     axes[0].legend(fontsize=7, ncol=3, loc="upper center", bbox_to_anchor=(0.5, 1.42))
     _save(fig, "fig_s2_dlc")
@@ -1290,6 +1334,7 @@ def main():
     blockset()
     blockset_setup()
     speed_prediction()
+    supplement_tables()
     prior()
     architectures()
     theta()
