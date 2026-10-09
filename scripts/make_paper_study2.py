@@ -454,6 +454,7 @@ def tiv_floats(arms):
                         [sci(float(gmean(m[n][arm][k]))) for k in ("one_step", "h10", "h50")])
     write("tiv_tab_s1.tex", tiv_table("llccc", ["$N$", "network", "one step", "10 steps", "50 steps"], rows,
           "Exact physics (single-track vehicle): test error of the four states, geometric mean over five training seeds. "
+          "One step: one-period test trajectories; 10 and 50 steps: 50-step test sequences (Section~\\ref{sec:evaluation}). "
           "Confidence intervals and all sizes are in the supplement.", "tab:s1"))
     # ---- Table III: closed loop compact (reference NMPC with the quasi-steady prior)
     R = {v: cl_runs(f"e18_s2_{v}") for v in VARIANTS}
@@ -552,10 +553,10 @@ def tiv_fig_speed(arms):
            "NMPC-qs": s["e4_s2"]["nmpc_qs"], "NMPC-prior": s["e4_s2"]["nmpc_rk4"]}
     pri = {v: load("e31_speed_prediction", f"e31_priors_{v}")["priors"] for v in VARIANTS}
     OFFSETS = {("m0", "PINC"): ((6, 2), "left"), ("m0", "data-only"): ((-6, -2), "right"), ("m0", "A8 data-only"): ((6, 2), "left"),
-               ("m0", "A8 PINC"): ((6, -6), "left"), ("m1", "A8 PINC"): ((-6, 0), "right"), ("m1", "A8 data-only"): ((6, -6), "left"),
-               ("m1", "grey-box-qs"): ((6, 2), "left"), ("m1", "PINC"): ((6, 0), "left"), ("m1", "data-only"): ((6, 0), "left")}
+               ("m0", "A8 PINC"): ((6, -6), "left"), ("m1", "A8 PINC"): ((6, 3), "left"), ("m1", "A8 data-only"): ((6, -6), "left"),
+               ("m1", "grey-box-qs"): ((6, 2), "left"), ("m1", "PINC"): ((6, 0), "left"), ("m1", "data-only"): ((6, -4), "left")}
     fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.7))
-    for ax, (v, n) in zip(axes, (("m0", 1000), ("m1", 100))):
+    for ax, (v, n) in zip(axes, (("m0", 1000), ("m1", 1000))):
         for arm, sv in t10.items():
             t = sv["10"]["median"]*1e3
             if arm.startswith("NMPC"):
