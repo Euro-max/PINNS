@@ -29,12 +29,31 @@ def main(argv=None):
     from pinc.mpc import RK4Predictor, make_predictor
     ap = base_parser(__doc__)
     ap.add_argument("--variant", default="m0")
+    ap.add_argument("--priors-only", action="store_true",
+                    help="only the priors, scored as E9 (mean over initial states of the body-state RMS) at 10 and 50 steps")
     a = ap.parse_args(argv)
     a.config = os.path.join(ROOT, "configs", f"hf_{a.variant}.yaml")
     _, run_dir = start("e31_speed_prediction", a)
     cfg = load_config(a.config, a.overrides)
     S_x = np.asarray(cfg.S_x)
     s0 = sample_box(N_IC, cfg.box_train, np.random.default_rng(cfg.seeds.test + 902), cfg)      # as E9 (test split)
+    if a.priors_only:                                   # the E9 metric for the NMPC prediction models (E9 scores networks only)
+        u50 = control_sequences(N_SEQ, 50, cfg, np.random.default_rng(4242), s0[:, 0]).reshape(-1, 50, 2)
+        s0r = np.repeat(s0, N_SEQ, axis=0)
+        truth, _ = truth_rollout(s0r, u50, cfg)
+        ic = np.repeat(np.arange(N_IC), N_SEQ)
+        rec, rows = {}, []
+        for name, model in (("quasi-steady prior", "qs"), ("full prior", "prior")):
+            p = np.asarray(RK4Predictor(cfg, model=model).rollout_batch(tf.constant(s0r), tf.constant(u50)))
+            e2 = ((p - truth)/S_x)**2
+            rec[name] = {str(h): float(np.mean([np.sqrt(np.mean(e2[ic == j, h - 1, :4])) for j in range(N_IC)])) for h in (1, 10, 50)}
+            rows.append([name] + [f"{rec[name][str(h)]:.4g}" for h in (1, 10, 50)])
+        text = (f"# E31 priors scored as E9, HF-{a.variant.upper()} (in-domain test set; mean over initial states of the "
+                "body-state RMS)\n\n" + md_table(["predictor", "1 step", "10 steps", "50 steps"], rows))
+        art = write_text(os.path.join(run_dir, "table_priors.md"), text)
+        finish(run_dir, cfg, a.seed, dict(variant=a.variant, priors=rec), [art])
+        print(text)
+        return
     u = control_sequences(N_SEQ, 50, cfg, np.random.default_rng(4242), s0[:, 0])[:, :, :N_STEPS].reshape(-1, N_STEPS, 2)
     s0r = np.repeat(s0, N_SEQ, axis=0)
     truth, _ = truth_rollout(s0r, u, cfg)

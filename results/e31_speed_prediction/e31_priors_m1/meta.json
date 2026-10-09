@@ -1,0 +1,17 @@
+{
+  "code_diff": "diff --git a/experiments/e31_speed_prediction.py b/experiments/e31_speed_prediction.py\nindex df640e3..5d32fa1 100644\n--- a/experiments/e31_speed_prediction.py\n+++ b/experiments/e31_speed_prediction.py\n@@ -29,12 +29,31 @@ def main(argv=None):\n     from pinc.mpc import RK4Predictor, make_predictor\n     ap = base_parser(__doc__)\n     ap.add_argument(\"--variant\", default=\"m0\")\n+    ap.add_argument(\"--priors-only\", action=\"store_true\",\n+                    help=\"only the priors, scored as E9 (mean over initial states of the body-state RMS) at 10 and 50 steps\")\n     a = ap.parse_args(argv)\n     a.config = os.path.join(ROOT, \"configs\", f\"hf_{a.variant}.yaml\")\n     _, run_dir = start(\"e31_speed_prediction\", a)\n     cfg = load_config(a.config, a.overrides)\n     S_x = np.asarray(cfg.S_x)\n     s0 = sample_box(N_IC, cfg.box_train, np.random.default_rng(cfg.seeds.test + 902), cfg)      # as E9 (test split)\n+    if a.priors_only:                                   # the E9 metric for the NMPC prediction models (E9 scores networks only)\n+        u50 = control_sequences(N_SEQ, 50, cfg, np.random.default_rng(4242), s0[:, 0]).reshape(-1, 50, 2)\n+        s0r = np.repeat(s0, N_SEQ, axis=0)\n+        truth, _ = truth_rollout(s0r, u50, cfg)\n+        ic = np.repeat(np.arange(N_IC), N_SEQ)\n+        rec, rows = {}, []\n+        for name, model in ((\"quasi-steady prior\", \"qs\"), (\"full prior\", \"prior\")):\n+            p = np.asarray(RK4Predictor(cfg, model=model).rollout_batch(tf.constant(s0r), tf.constant(u50)))\n+            e2 = ((p - truth)/S_x)**2\n+            rec[name] = {str(h): float(np.mean([np.sqrt(np.mean(e2[ic == j, h - 1, :4])) for j in range(N_IC)])) for h in (1, 10, 50)}\n+            rows.append([name] + [f\"{rec[name][str(h)]:.4g}\" for h in (1, 10, 50)])\n+        text = (f\"# E31 priors scored as E9, HF-{a.variant.upper()} (in-domain test set; mean over initial states of the \"\n+                \"body-state RMS)\\n\\n\" + md_table([\"predictor\", \"1 step\", \"10 steps\", \"50 steps\"], rows))\n+        art = write_text(os.path.join(run_dir, \"table_priors.md\"), text)\n+        finish(run_dir, cfg, a.seed, dict(variant=a.variant, priors=rec), [art])\n+        print(text)\n+        return\n     u = control_sequences(N_SEQ, 50, cfg, np.random.default_rng(4242), s0[:, 0])[:, :, :N_STEPS].reshape(-1, N_STEPS, 2)\n     s0r = np.repeat(s0, N_SEQ, axis=0)\n     truth, _ = truth_rollout(s0r, u, cfg)\n",
+  "command": "python experiments/e31_speed_prediction.py --variant m1 --priors-only --run-id e31_priors_m1",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "1118957bd86dfcb623bf8cbdd72b2c6b9aab6d0e-dirty",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "seed": 0,
+  "timestamp": "2026-10-09T09:47:30",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
