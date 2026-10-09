@@ -1,4 +1,5 @@
 # PINC-MPC for vehicle control
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.23269815.svg)](https://doi.org/10.5281/zenodo.23269815)
 
 This repository trains physics-informed neural networks for control (PINC, after Antonelo et al., arXiv 2104.02556) as prediction models for model predictive control (MPC) of a car, and compares them with data-only networks, grey-box models and nonlinear MPC (NMPC). The proposed model is a prior-anchored PINC network, whose output is one explicit step of a simplified vehicle model plus a learned term. Every number, table and figure in the paper and its supplement comes from a script in this repository, and `results/MANIFEST.md` lists the stored artefacts.
 
