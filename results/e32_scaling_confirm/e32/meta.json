@@ -1,0 +1,16 @@
+{
+  "command": "python experiments/e32_scaling_confirm.py --part train --run-id e32 --slots gpu,gpu,cpu",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "defcd16a54b938899aac0d2220a18f92a00fd08f",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "seed": 0,
+  "timestamp": "2026-10-09T22:19:25",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
