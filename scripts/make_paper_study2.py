@@ -286,6 +286,70 @@ def study1_rerun():
                                        "tab:s1-timing"))
 
 
+# ---------------------------------------------------------------- Blockset vehicle: E30 (trained on it) and E29 (transfer)
+VB_ARMS = ("data-only", "anchored data-only", "anchored PINC", "grey-box-qs")
+VB_TAG = {"data-only": "Data", "anchored data-only": "AnchData", "anchored PINC": "Anch", "grey-box-qs": "GreyQs",
+          "PINC": "Pinc", "grey-box": "Grey"}
+VB_LABEL = {"data-only": "data-only network", "anchored data-only": "anchored data-only network",
+            "anchored PINC": "anchored PINC network", "grey-box-qs": "grey-box, quasi-steady prior"}
+
+
+def blockset():
+    """E30 (main text): trained and tested on the Blockset 14-DOF vehicle; E29 (appendix): trained on our plant."""
+    e30 = load("e30_vdbs_retrain", "e30_eval")
+    e29 = load("e29_vdbs_transfer", "e29_eval")
+    chk = load("e30_vdbs_retrain", "e30_assemble")["checks"]
+    cell = lambda c: f"{sig2(c['ratio'])} ({c['wins']}/5)"
+    macro("VbPriorOneStep", f"{chk['prior_qs_one_step_body']:.4f}")
+    macro("VbPriorFifty", f"{e30['prior']['50']:.3f}"); macro("VbPriorTen", f"{e30['prior']['10']:.3f}")
+    rows = [["simplified physics alone", "--", f"{e30['prior']['50']:.3f}", "--", "--", f"{e30['prior']['50']:.3f}"]]
+    for n in ("100", "1000"):
+        for arm in VB_ARMS:
+            r, c = e30["results"][n][arm], e30["comparisons"][n][arm]
+            tag = f"Vb{VB_TAG[arm]}{NTAG[int(n)]}"
+            macro(tag + "Fifty", sci(float(gmean(r["err"]["50"]))).strip("$"))
+            macro(tag + "TransferFifty", sci(float(gmean(r["e29_h50"]))).strip("$"))
+            cmp_macros(tag + "VsPrior", dict(ratio=c["vs_prior"]["50"]["ratio"], wins=c["vs_prior"]["50"]["wins"], n=5, p=c["vs_prior"]["50"]["p"]))
+            cmp_macros(tag + "VsTransfer", dict(c["vs_e29"], n=5))
+            if c["vs_data"]:
+                cmp_macros(tag + "VsData", dict(c["vs_data"], n=5))
+            rows.append([VB_LABEL[arm], f"{int(n):,}".replace(",", "\\,"), ci_cell(r["err"]["50"]), cell(c["vs_prior"]["50"]),
+                         cell(c["vs_data"]) if c["vs_data"] else "--", ci_cell(r["e29_h50"])])
+        for k, v in e30["comparisons"][n].items():
+            if " vs " in k:
+                x, y = k.split(" vs ")
+                for h, t in (("1", "One"), ("10", "Ten"), ("50", "Fifty")):
+                    cmp_macros(f"VbCmp{NTAG[int(n)]}{VB_TAG[x]}Vs{VB_TAG[y]}{t}", dict(v[h], n=5))
+    write("tab_vb_main.tex", tabular("llcccc", ["model", "$N$", "50 steps", "vs prior", "vs data-only", "trained on our plant"], rows,
+                                     "Trained and tested on the Blockset 14-DOF vehicle (E30): 50-step test error of the body states, "
+                                     "geometric mean [95\\,\\% confidence interval] over five training seeds (5 to 9). vs prior: error of "
+                                     "the simplified physics alone divided by the model's error (above 1: the model is better), geometric "
+                                     "mean over seeds and seeds better; vs data-only: the same against the data-only network. Last column: "
+                                     "the same models trained on our double-track plant and tested on the Blockset vehicle without retraining "
+                                     "(E29). Physics weights as selected on M0.", "tab:vb-main", wide=True))
+    # E29 appendix table
+    rows = []
+    for name in ("our plant (M0)", "quasi-steady prior"):
+        rf = e29["references"][name]
+        rows.append([name, "--", f"{rf['10']['mean']:.3f}", f"{rf['50']['mean']:.3f}", "--"])
+    for n in ("100", "1000", "20000"):
+        for arm, r in e29["models"][n].items():
+            vp = r["vs_prior"]["50"]
+            tag = f"Tr{VB_TAG.get(arm, ATAG.get(E28_NAMES.get(arm, arm), arm.replace('-', '')))}{NTAG[int(n)]}"
+            macro(tag + "Fifty", sci(float(gmean(r["h50"]))).strip("$"))
+            cmp_macros(tag + "VsPrior", dict(ratio=vp["ratio"], wins=vp["wins"], n=5, p=vp["p"]))
+            rows.append([LABEL.get(E28_NAMES.get(arm, arm), arm), f"{int(n):,}".replace(",", "\\,"), sci(float(gmean(r["h10"]))),
+                         sci(float(gmean(r["h50"]))), f"{sig2(vp['ratio'])} ({vp['wins']}/5)"])
+    write("tab_vb_transfer.tex", tabular("llccc", ["predictor", "$N$", "10 steps", "50 steps", "vs prior"], rows,
+                                         "Models trained on our double-track plant (M0, seeds 5 to 9) and tested without retraining on "
+                                         "the Blockset 14-DOF vehicle (E29); references are single predictors from the same starting states. "
+                                         "Columns as in Table~\\ref{tab:vb-main}.", "tab:vb-transfer", wide=True))
+    rs = e29["resistance"]
+    macro("VbResistConst", f"{rs['blockset']['c0']:.0f}"); macro("VbResistQuad", f"{rs['blockset']['c2']:.3f}")
+    macro("VbResistConstOurs", f"{rs['our_plant']['c0']:.0f}"); macro("VbResistQuadOurs", f"{rs['our_plant']['c2']:.3f}")
+    macro("VbResistDiff", f"{rs['our_plant']['c0'] - rs['blockset']['c0']:.0f}")
+
+
 # ---------------------------------------------------------------- prior error (E13, E25)
 def prior():
     s = load("e13_prior_error", "e13_v2")["variants"]
@@ -977,6 +1041,7 @@ def main():
     comparisons(pooled(), prefix="Sec")
     table_main(arms)
     study1_rerun()
+    blockset()
     prior()
     architectures()
     theta()
