@@ -204,6 +204,88 @@ def study1():
                                        "tab:s1-anchor", wide=True))
 
 
+# ---------------------------------------------------------------- Study 1 rerun with the Study 2 protocol (E27, E18 st, E4)
+S1_ARMS = ("data-only", "PINC", "anchored data-only", "anchored PINC")
+S1_TAG = {"data-only": "Data", "PINC": "Pinc", "anchored data-only": "AnchData", "anchored PINC": "Anch",
+          "NMPC-exact": "NmpcExact", "LTV": "Ltv"}
+S1_N = {100: "Hundred", 1000: "Thousand", 10000: "TenK", 20000: "TwentyK"}
+S1_MT = dict(one_step="One", deriv="Deriv", h10="Ten", h50="Fifty", h50_extrap="Extrap")
+
+
+def study1_rerun():
+    """Study 1 (single-track vehicle, exact physics) under the Study 2 protocol: lambda selected on validation (E27,
+    seeds 0-2), main comparison on seeds 5-9 (E27), closed loop (E18 --variant st) and solve time (E4)."""
+    lam = load("e27_study1_rerun", "e27_lambda")
+    fl = lambda l: f"{l:g}" if l >= 0.1 or l == 0 else f"10^{{{int(round(np.log10(l)))}}}"
+    for k, l in lam["best"].items():
+        net, n = k.split("_")
+        macro(f"SoneLamSel{'Plain' if net == 'plain' else 'Anch'}{S1_N[int(n)]}", fl(float(l)))
+    for k, d in lam["results"].items():                      # validation 50-step error at lambda = 0 and at the selection
+        net, n = k.split("_")
+        tag = f"{'Plain' if net == 'plain' else 'Anch'}{S1_N[int(n)]}"
+        best = str(lam["best"][k]) if str(lam["best"][k]) in d else f"{float(lam['best'][k]):g}"
+        macro(f"SoneLamVal{tag}Zero", sci(float(np.mean(d["0"]))).strip("$"))
+        macro(f"SoneLamVal{tag}Sel", sci(float(np.mean(d[best]))).strip("$"))
+        macro(f"SoneLamGain{tag}", f"{np.mean(d['0'])/np.mean(d[best]):.0f}")
+    m = load("e27_study1_rerun", "e27_main")
+    res, lams = m["results"], m["lambdas"]
+    rows = []
+    for n in sorted(res, key=int):
+        a = res[n]
+        for arm in S1_ARMS:
+            for mt, tag in S1_MT.items():
+                macro(f"SoneVal{S1_N[int(n)]}{S1_TAG[arm]}{tag}", sci(float(gmean(a[arm][mt]))).strip("$"))
+            l = 0.0 if "data-only" in arm else lams["anchored" if "anchored" in arm else "plain"][n]
+            rows.append([f"{int(n):,}".replace(",", "\\,") if arm == S1_ARMS[0] else "", arm.replace("PINC", "PINC network").replace("data-only", "data-only network"),
+                         f"${fl(float(l))}$"] + [ci_cell(a[arm][mt]) for mt in ("one_step", "deriv", "h10", "h50")])
+        for x, y in (("PINC", "data-only"), ("anchored PINC", "anchored data-only"), ("anchored PINC", "PINC"),
+                     ("anchored data-only", "data-only"), ("anchored PINC", "data-only")):
+            for mt, tag in S1_MT.items():
+                cmp_macros(f"SoneCmp{S1_N[int(n)]}{S1_TAG[x]}Vs{S1_TAG[y]}{tag}", compare(a[x][mt], a[y][mt]))
+    write("tab_s1_main.tex", tabular("lllcccc", ["$N$", "model", "$\\lambda$", "one step", "derivative", "10 steps", "50 steps"], rows,
+                                     "Study 1 (single-track vehicle, exact physics): test error (NRMSE of all four states), geometric mean "
+                                     "[95\\,\\% confidence interval] over five training seeds (5 to 9). Derivative: error of the network's "
+                                     "time derivative against the true dynamics, in units of $S_f$. Physics weights selected on the validation "
+                                     "set with seeds 0 to 2.", "tab:s1-main", wide=True))
+    # closed loop, against NMPC with the exact model
+    R = cl_runs("e18_s1")
+    rows = []
+    for arm, n in [("NMPC-exact", 0), ("LTV", 0)] + [(a_, n_) for n_ in (100, 20000) for a_ in S1_ARMS]:
+        runs = [x for ref in CL_REFS for x in R[(ref, arm, n)]]
+        lost = sum(x["max_Y"] > 1.0 for x in runs)
+        med = {mt: geo_ci(list(cl_metric(R, arm, n, mt).values()))["mean"] for mt in ("lane", "sin", "iso")}
+        tag = f"SoneCl{S1_TAG[arm]}" + (S1_N[n] if n else "")
+        macro(tag + "Lost", str(lost)); macro(tag + "Lane", f"{med['lane']:.3f}"); macro(tag + "Sin", f"{med['sin']:.3f}"); macro(tag + "Iso", f"{med['iso']:.2f}")
+        cells = []
+        if n:
+            for mt, t in (("lane", "Lane"), ("sin", "Sin"), ("iso", "Iso")):
+                c = cl_compare(R, (arm, n), ("NMPC-exact", 0), mt)
+                cmp_macros(f"SoneClCmp{S1_N[n]}{S1_TAG[arm]}VsNmpcExact{t}", c)
+                cells.append(f"{sig2(c['ratio'])} ({c['wins']}/{c['n']})")
+        rows.append([arm if not n else arm.replace("PINC", "PINC network").replace("data-only", "data-only network"),
+                     "--" if n == 0 else f"{n:,}".replace(",", "\\,"), f"{lost}/{len(runs)}",
+                     f"{med['lane']:.3f}", f"{med['sin']:.3f}", f"{med['iso']:.2f}"] + (cells if cells else ["--"]*3))
+    write("tab_s1_closed.tex", tabular("llcccc|ccc", ["controller", "$N$", "lost", "lane $Y$", "sin. $v_x$", "ISO peak",
+                                                        "lane", "sin.", "ISO"], rows,
+                                       "Study 1 closed loop on the single-track vehicle with exact physics. Columns as in "
+                                       "Table~\\ref{tab:s2-closed}; right: NMPC with the exact model divided by the controller's error "
+                                       "(above 1: the controller is better), geometric mean over training seeds, seeds better.",
+                                       "tab:s1-closed", wide=True))
+    # solve time
+    t1 = {"NMPC-exact": ("e4_s1", "nmpc_rk4"), "LTV": ("e4_s1", "ltv"), "PINC network": ("e4_s1", "pinc"),
+          "data-only network": ("e4_s1", "blackbox"), "anchored PINC network": ("e4_s1_anchored", "pinc")}
+    rows = []
+    for lab, (run, arm) in t1.items():
+        sv = load("e4_timing", run)["solve"][arm]
+        rows.append([lab] + [f"{sv[str(n)]['median']*1e3:.1f} [{sv[str(n)]['p95']*1e3:.1f}]" for n in (5, 10, 20, 40)])
+        for n, w in ((10, "Ten"), (40, "Forty")):
+            macro(f"SoneSolve{''.join(x.capitalize() for x in lab.replace('-', ' ').split()[:2])}{w}", f"{sv[str(n)]['median']*1e3:.1f}")
+    write("tab_s1_timing.tex", tabular("lcccc", ["controller", "$N_\\mathrm{h}=5$", "10", "20", "40"], rows,
+                                       "Study 1 solve time per step [ms]: median [95th percentile], one CPU thread with the GPU hidden, "
+                                       "learned models trained on 1000 trajectories (seed 5); conditions as in Table~\\ref{tab:s2-timing}.",
+                                       "tab:s1-timing"))
+
+
 # ---------------------------------------------------------------- prior error (E13, E25)
 def prior():
     s = load("e13_prior_error", "e13_v2")["variants"]
@@ -894,7 +976,7 @@ def main():
     comparisons(arms)
     comparisons(pooled(), prefix="Sec")
     table_main(arms)
-    study1()
+    study1_rerun()
     prior()
     architectures()
     theta()
