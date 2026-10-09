@@ -1,0 +1,18 @@
+{
+  "command": "python pinc/train.py --seed 2 --run-id vdbs_lam10_anchored_n100_s2 --exp models --config configs/hf_m0.yaml --set train.n_data=100 --set train.steps=6000 --set train.batch_data=100 --set train.val_every=20 --set loss.lam=10.0 --set seeds.train=200 --set loss.residual_mask=[1,1,1,1,1,1,0,0,0,0] --set model.arch=anchored --set train.data_file=results/e30_vdbs_retrain/data/sel_seed2.npz --set train.n_val=1000 --threads 4",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "exp": "models",
+  "git": "2c222e4a5ba45288f111a61703aca6801423fa64",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "run_id": "vdbs_lam10_anchored_n100_s2",
+  "seed": 2,
+  "timestamp": "2026-10-09T11:47:30",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
