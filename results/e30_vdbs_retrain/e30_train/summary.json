@@ -1,0 +1,18 @@
+{
+  "n_runs": 40,
+  "part": "train",
+  "registry": {
+    "100": {
+      "anchored PINC": "vdbs_anchored_PINC_n100_s{seed}",
+      "anchored data-only": "vdbs_anchored_data-only_n100_s{seed}",
+      "data-only": "vdbs_data-only_n100_s{seed}",
+      "grey-box-qs": "vdbs_grey-box-qs_n100_s{seed}"
+    },
+    "1000": {
+      "anchored PINC": "vdbs_anchored_PINC_n1000_s{seed}",
+      "anchored data-only": "vdbs_anchored_data-only_n1000_s{seed}",
+      "data-only": "vdbs_data-only_n1000_s{seed}",
+      "grey-box-qs": "vdbs_grey-box-qs_n1000_s{seed}"
+    }
+  }
+}

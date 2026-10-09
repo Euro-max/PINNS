@@ -1,0 +1,27 @@
+{
+ "seeds": [
+  5,
+  6,
+  7,
+  8,
+  9
+ ],
+ "lambdas": {
+  "100": 10.0,
+  "1000": 1.0
+ },
+ "arms": {
+  "100": {
+   "data-only": "vdbs_data-only_n100_s{seed}",
+   "anchored data-only": "vdbs_anchored_data-only_n100_s{seed}",
+   "anchored PINC": "vdbs_anchored_PINC_n100_s{seed}",
+   "grey-box-qs": "vdbs_grey-box-qs_n100_s{seed}"
+  },
+  "1000": {
+   "data-only": "vdbs_data-only_n1000_s{seed}",
+   "anchored data-only": "vdbs_anchored_data-only_n1000_s{seed}",
+   "anchored PINC": "vdbs_anchored_PINC_n1000_s{seed}",
+   "grey-box-qs": "vdbs_grey-box-qs_n1000_s{seed}"
+  }
+ }
+}
