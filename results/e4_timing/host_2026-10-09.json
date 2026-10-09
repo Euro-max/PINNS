@@ -1,0 +1,8 @@
+{
+    "cpu":  "Intel(R) Core(TM) Ultra 9 275HX",
+    "base_mhz":  2700,
+    "cores":  24,
+    "threads":  24,
+    "power_plan":  "Balanced",
+    "on_mains":  true
+}

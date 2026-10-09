@@ -1,0 +1,18 @@
+{
+  "command": "python experiments/e4_timing.py --run-id e4_s1 --threads 1 --arms pinc,blackbox,nmpc_rk4,ltv --pinc-model results/models/s1v3_plain_n1000_lam0.1_s5 --blackbox-model results/models/s1v3_plain_n1000_lam0_s5",
+  "cpu": "Intel(R) Core(TM) Ultra 9 275HX",
+  "git": "3286ce6a032e398a4818940fac7fa53566a1be3f",
+  "platform": "Linux-6.18.40.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+  "quick": false,
+  "seed": 0,
+  "threads": 1,
+  "timestamp": "2026-10-09T01:10:48",
+  "versions": {
+    "matplotlib": "3.11.2",
+    "numpy": "2.5.3",
+    "python": "3.13.16",
+    "pyyaml": "6.0.3",
+    "scipy": "1.18.1",
+    "tensorflow": "2.21.0"
+  }
+}
