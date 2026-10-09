@@ -18,6 +18,7 @@ from pinc.config import RESULTS_DIR  # noqa: E402
 from pinc.metrics import bootstrap_ci  # noqa: E402
 
 macros = {}
+WORDS = "zero one two three four five six seven eight nine ten eleven twelve".split()
 VARIANTS = ("m0", "m1")
 VTAG = dict(m0="Mzero", m1="Mone")
 NTAG = {100: "Hundred", 1000: "Thousand", 20000: "TwentyK"}
@@ -67,6 +68,8 @@ def cmp_macros(name, c):
     macro(name + "Dir", "lower" if up else "higher")
     macro(name + "Seeds", str(c["wins"] if up else c["n"] - c["wins"]))
     macro(name + "N", str(c["n"]))
+    macro(name + "SeedsWord", WORDS[c["wins"] if up else c["n"] - c["wins"]])      # prose: seeds as words up to ten
+    macro(name + "NWord", WORDS[c["n"]])
     macro(name + "Wins", f"{c['wins']}/{c['n']}")
     macro(name + "P", pval(c["p"]))
 
@@ -348,6 +351,174 @@ def blockset():
     macro("VbResistConst", f"{rs['blockset']['c0']:.0f}"); macro("VbResistQuad", f"{rs['blockset']['c2']:.3f}")
     macro("VbResistConstOurs", f"{rs['our_plant']['c0']:.0f}"); macro("VbResistQuadOurs", f"{rs['our_plant']['c2']:.3f}")
     macro("VbResistDiff", f"{rs['our_plant']['c0'] - rs['blockset']['c0']:.0f}")
+
+
+# ---------------------------------------------------------------- T-IV floats (main_tiv.tex)
+def tiv_table(cols, header, rows, caption, label, wide=False, scale=True):
+    """IEEE floats: caption above; one column (table) or both (table*), scaled to fit when needed."""
+    body = " \\\\\n".join(" & ".join(r) for r in rows)
+    tab = f"\\begin{{tabular}}{{{cols}}}\\toprule\n{' & '.join(header)} \\\\\\midrule\n{body} \\\\\n\\bottomrule\\end{{tabular}}"
+    if scale:
+        tab = f"\\resizebox{{{'\\textwidth' if wide else '\\columnwidth'}}}{{!}}{{{tab}}}"
+    env = "table*" if wide else "table"
+    return f"\\begin{{{env}}}[t]\\centering\\footnotesize\n\\caption{{{caption}}}\\label{{{label}}}\n{tab}\n\\end{{{env}}}\n"
+
+
+def tiv_floats(arms):
+    fl = lambda l: "--" if l is None else (f"${l:g}$" if l >= 0.1 or l == 0 else f"$10^{{{int(round(np.log10(l)))}}}$")
+    # ---- Table I: physics weights
+    s1 = load("e27_study1_rerun", "e27_main")["lambdas"]
+    rows = [["single-track (exact)", "PINC"] + [fl(float(s1["plain"][str(n)])) for n in (100, 1000, 20000)],
+            ["", "anchored PINC"] + [fl(float(s1["anchored"][str(n)])) for n in (100, 1000, 20000)]]
+    for v in VARIANTS:
+        lam = load("e28_main_fresh", f"e28_{v}")["lambdas"]
+        rows.append([f"double-track, {v.upper()}", "PINC"] + [fl(float(lam[str(n)][0])) for n in (100, 1000, 20000)])
+        rows.append(["", "anchored PINC"] + [fl(float(lam[str(n)][1])) for n in (100, 1000, 20000)])
+    vb = json.load(open(os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_train", "registry.json")))["lambdas"]
+    rows.append(["Blockset (M0 value)", "anchored PINC"] + [fl(float(vb.get(str(n)))) if str(n) in vb else "--" for n in (100, 1000, 20000)])
+    sel_f = os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_lambda", "summary.json")
+    if os.path.exists(sel_f):
+        sel = json.load(open(sel_f))["selected"]
+        rows.append(["Blockset, sensitivity$^\\dagger$", "anchored PINC"] + [fl(float(sel[str(n)])) if str(n) in sel else "--" for n in (100, 1000, 20000)])
+    write("tiv_tab_lambda.tex", tiv_table("llccc", ["vehicle", "network", "$N=100$", "1000", "20\\,000"], rows,
+          "Physics weight $\\lambda$, selected on the validation 50-step error with seeds 0 to 2 before the reporting runs "
+          "(seeds 5 to 9). The Blockset vehicle uses the M0 values. $^\\dagger$Selected on the Blockset vehicle in a "
+          "follow-up run; sensitivity analysis only (Section~\\ref{sec:res-blockset}).", "tab:lambda"))
+    # ---- Table II: Study 1 compact
+    m = load("e27_study1_rerun", "e27_main")["results"]
+    rows = []
+    for n in ("100", "20000"):
+        for arm in S1_ARMS:
+            rows.append([f"{int(n):,}".replace(",", "\\,") if arm == S1_ARMS[0] else "", arm.replace("anchored ", "anch.\\ ")] +
+                        [sci(float(gmean(m[n][arm][k]))) for k in ("one_step", "h10", "h50")])
+    write("tiv_tab_s1.tex", tiv_table("llccc", ["$N$", "network", "one step", "10 steps", "50 steps"], rows,
+          "Exact physics (single-track vehicle): test error of the four states, geometric mean over five training seeds. "
+          "Confidence intervals and all sizes are in the supplement.", "tab:s1"))
+    # ---- Table III: closed loop compact (reference NMPC with the quasi-steady prior)
+    R = {v: cl_runs(f"e18_s2_{v}") for v in VARIANTS}
+    order = [("NMPC-true", 0), ("NMPC-qs", 0)] + [(a, n) for n in (100, 1000) for a in ("data-only", "PINC", "PINC-ablation", "anchored data-only", "anchored PINC", "grey-box-qs")]
+    lab = {"NMPC-true": "NMPC, true model", "NMPC-qs": "NMPC, quasi-steady prior", "data-only": "data-only", "PINC": "PINC",
+           "PINC-ablation": "PINC, $\\lambda=10^{-3}$", "anchored data-only": "anchored data-only", "anchored PINC": "anchored PINC",
+           "grey-box-qs": "grey-box (q.-s.\\ prior)"}
+    rows = []
+    for arm, n in order:
+        if not any((CL_LANES[0], arm, n) in R[v] for v in VARIANTS):
+            continue
+        r = [lab[arm], "--" if n == 0 else f"{n:,}".replace(",", "\\,")]
+        for v in VARIANTS:
+            if (CL_LANES[0], arm, n) not in R[v]:
+                r += ["--"]*4
+                continue
+            runs = [x for ref in CL_REFS for x in R[v][(ref, arm, n)]]
+            med = {mt: geo_ci(list(cl_metric(R[v], arm, n, mt).values()))["mean"] for mt in ("lane", "iso", "sin")}
+            r += [str(sum(x["max_Y"] > 1.0 for x in runs)), f"{med['lane']:.3f}", f"{med['iso']:.2f}", f"{med['sin']:.3f}"]
+        rows.append(r)
+    write("tiv_tab_closed.tex", tiv_table("llcccc|cccc", ["controller", "$N$", "lost", "lane $Y$", "ISO $Y$", "$v_x$",
+                                                            "lost", "lane $Y$", "ISO $Y$", "$v_x$"], rows,
+          "Closed loop on the double-track vehicle, M0 (left) and M1 (right). Lost: runs with a lateral error above "
+          "1\\,m, of 50 (ten for the true model). Lane $Y$: lateral RMSE [m], mean of the three lane changes; ISO $Y$: peak "
+          "lateral error [m] on the ISO 3888-2 path; $v_x$: speed RMSE [m/s] on the speed sinusoid. Learned controllers: "
+          "geometric mean over five training seeds, each the mean of two noise seeds; NMPC: over ten noise seeds (two for "
+          "the true model).", "tab:closed", wide=True))
+    # ---- Table IV: Blockset vehicle (E30), with the sensitivity rows when available
+    e30 = load("e30_vdbs_retrain", "e30_eval")
+    cell = lambda c: f"{sig2(c['ratio'])} ({c['wins']}/5)"
+    rows = [["simplified physics alone", "--"] + [f"{e30['prior'][h]:.3f}" for h in ("10", "50")] + ["--", "--", "--"]]
+    sens_f = os.path.join(RESULTS_DIR, "e30_vdbs_retrain", "e30_lambda_main", "summary.json")
+    sens = json.load(open(sens_f))["results"] if os.path.exists(sens_f) else {}
+    for n in ("100", "1000"):
+        for arm in VB_ARMS:
+            r, c = e30["results"][n][arm], e30["comparisons"][n][arm]
+            rows.append([VB_LABEL[arm].replace(" network", ""), f"{int(n):,}".replace(",", "\\,"),
+                         sci(float(gmean(r["err"]["10"]))), sci(float(gmean(r["err"]["50"]))), cell(c["vs_prior"]["50"]),
+                         cell(c["vs_data"]) if c["vs_data"] else "--", sci(float(gmean(r["e29_h50"])))])
+        if n in sens:
+            r = sens[n]
+            cv = r["comparisons"]
+            rows.append([f"anchored PINC, $\\lambda={r['lam']:g}^\\dagger$", f"{int(n):,}".replace(",", "\\,"),
+                         sci(float(gmean(r["err"]["10"]))), sci(float(gmean(r["err"]["50"]))), cell(cv["vs prior"]["50"]),
+                         cell(cv["vs data-only"]["50"]), "--"])
+    write("tiv_tab_blockset.tex", tiv_table("llccccc", ["model", "$N$", "10 steps", "50 steps", "vs prior", "vs data-only",
+                                                           "trained on our plant"], rows,
+          "Trained and tested on the Blockset 14-DOF vehicle: test error of the body states, geometric mean over five "
+          "training seeds. vs prior / vs data-only (50 steps): the other model's error divided by this model's, above 1 "
+          "this model is better, with seeds better. Last column: 50-step error of the same models trained on our double-track "
+          "plant, without retraining. Physics weights as on M0; $^\\dagger$weight selected on the Blockset vehicle "
+          "(sensitivity analysis).", "tab:blockset", wide=True))
+
+
+def tiv_fig_data(arms):
+    """Fig. 2: 10- and 50-step test error against N on M0 and M1, with the quasi-steady prior as a reference line."""
+    plt = _plt()
+    pri = {v: load("e31_speed_prediction", f"e31_priors_{v}")["priors"]["quasi-steady prior"] for v in VARIANTS}
+    fig, axes = plt.subplots(2, 2, figsize=(7.0, 4.6), sharex=True)
+    for j, v in enumerate(VARIANTS):
+        for i, (m, h) in enumerate((("h10", "10"), ("h50", "50"))):
+            ax = axes[i, j]
+            for arm in ("data-only", "PINC", "PINC-ablation", "A8 data-only", "A8 PINC", "grey-box-qs", "grey-box"):
+                ns = [n for n in sorted(arms[v]) if arm in arms[v][n]]
+                if not ns:
+                    continue
+                cc = [geo_ci(arms[v][n][arm][m]) for n in ns]
+                mm = np.array([c["mean"] for c in cc])
+                col, mk, ls = STYLE.get(arm, ("#6b6b6b", "x", "-"))
+                ax.errorbar(ns, mm, yerr=[mm - [c["lo"] for c in cc], np.array([c["hi"] for c in cc]) - mm], color=col, marker=mk,
+                            ls=ls, capsize=2, label=LABEL[arm].replace(" network", ""), ms=4)
+            ax.axhline(pri[v][h], color=INK, lw=0.9, ls="--", label="simplified physics alone")
+            ax.set(xscale="log", yscale="log")
+            ax.set_title(f"{v.upper()}, {h} steps", color=INK)
+            if i == 1:
+                ax.set_xlabel("training trajectories $N$")
+            if j == 0:
+                ax.set_ylabel("test error (body states)")
+    seen = {}
+    for ax in axes.flat:                                   # every arm once, whichever panel has it
+        for h_, l_ in zip(*ax.get_legend_handles_labels()):
+            seen.setdefault(l_, h_)
+    fig.legend(list(seen.values()), list(seen.keys()), fontsize=6.5, ncol=4, loc="upper center", bbox_to_anchor=(0.5, 1.06))
+    fig.tight_layout(rect=(0, 0, 1, 0.95))
+    _save(fig, "tiv_fig_data")
+    plt.close(fig)
+
+
+def tiv_fig_speed(arms):
+    """Fig. 3: 10-step test error against MPC solve time at a horizon of 10 (M0 at N = 1000, M1 at N = 100)."""
+    plt = _plt()
+    s = {r: load("e4_timing", r)["solve"] for r in ("e4_s2", "e4_s2_anchored", "e4_s2_gbfull")}
+    t10 = {"A8 PINC": s["e4_s2_anchored"]["pinc"], "A8 data-only": s["e4_s2_anchored"]["pinc"], "PINC": s["e4_s2"]["pinc"],
+           "data-only": s["e4_s2"]["blackbox"], "grey-box-qs": s["e4_s2"]["greybox"], "grey-box": s["e4_s2_gbfull"]["greybox"],
+           "NMPC-qs": s["e4_s2"]["nmpc_qs"], "NMPC-prior": s["e4_s2"]["nmpc_rk4"]}
+    pri = {v: load("e31_speed_prediction", f"e31_priors_{v}")["priors"] for v in VARIANTS}
+    OFFSETS = {("m0", "PINC"): ((6, 2), "left"), ("m0", "data-only"): ((-6, -2), "right"), ("m0", "A8 data-only"): ((6, 2), "left"),
+               ("m0", "A8 PINC"): ((6, -6), "left"), ("m1", "A8 PINC"): ((-6, 0), "right"), ("m1", "A8 data-only"): ((6, -6), "left"),
+               ("m1", "grey-box-qs"): ((6, 2), "left"), ("m1", "PINC"): ((6, 0), "left"), ("m1", "data-only"): ((6, 0), "left")}
+    fig, axes = plt.subplots(1, 2, figsize=(7.0, 2.7))
+    for ax, (v, n) in zip(axes, (("m0", 1000), ("m1", 100))):
+        for arm, sv in t10.items():
+            t = sv["10"]["median"]*1e3
+            if arm.startswith("NMPC"):
+                e = pri[v]["quasi-steady prior" if arm == "NMPC-qs" else "full prior"]["10"]
+                col, mk = {"NMPC-qs": ("#6b6b6b", "P"), "NMPC-prior": ("#008300", "P")}[arm]
+                ax.plot(t, e, color=col, marker=mk, ls="none", ms=6)
+                ax.annotate({"NMPC-qs": "NMPC, q.-s. prior", "NMPC-prior": "NMPC, full prior"}[arm], (t, e), textcoords="offset points",
+                            xytext=(5, 5), fontsize=6.5, color=INK)
+                continue
+            if arm not in arms[v].get(n, {}):
+                continue
+            c = geo_ci(arms[v][n][arm]["h10"])
+            col, mk, _ = STYLE.get(arm, ("#6b6b6b", "x", "-"))
+            ax.errorbar(t, c["mean"], yerr=[[c["mean"] - c["lo"]], [c["hi"] - c["mean"]]], color=col, marker=mk, capsize=2, ls="none", ms=5)
+            off, ha = OFFSETS.get((v, arm), ((5, 3), "left"))
+            ax.annotate(LABEL[arm].replace(" network", "").replace(", quasi-steady prior", ", q.-s."), (t, c["mean"]),
+                        textcoords="offset points", xytext=off, fontsize=6.5, color=INK, ha=ha)
+        ax.axvline(100, color=MUTED, lw=0.8, ls=":")
+        ax.set(xscale="log", yscale="log", xlabel="solve time per step at $N_\\mathrm{h}=10$ [ms]")
+        ax.set_title(f"{v.upper()}, $N$ = " + f"{n:,}".replace(",", "\u2009"), color=INK)
+        ax.set_xlim(5, 1000)
+    axes[0].set_ylabel("10-step test error")
+    fig.tight_layout()
+    _save(fig, "tiv_fig_speed")
+    plt.close(fig)
 
 
 # ---------------------------------------------------------------- prior error (E13, E25)
@@ -1058,6 +1229,9 @@ def main():
     fig_data(arms)
     fig_speed(arms)
     fig_dlc()
+    tiv_floats(arms)
+    tiv_fig_data(arms)
+    tiv_fig_speed(arms)
     txt = "% generated by scripts/make_paper_study2.py -- do not edit\n" + "".join(f"\\newcommand{{\\{k}}}{{{v}}}\n" for k, v in macros.items())
     write("numbers_s2.tex", txt)
     write("macro_index_s2.md", "\n".join(f"{k} = {v}" for k, v in sorted(macros.items())) + "\n")
