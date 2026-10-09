@@ -454,6 +454,44 @@ def supplement_tables():
                                           "tab:sup-vb-state", wide=True))
 
 
+def scaling_confirm():
+    """E32: the output scaling D under the E27 protocol (Study 1, plain network, lambda 0 and 0.1, seeds 5-9).
+    Macros ScaleVal<N><arm><metric> and ScaleCmp<N><comparison><metric>; the comparison with D is the E27 one
+    (SoneCmp<N>PincVsData<metric>, same data)."""
+    s = load("e32_scaling_confirm", "e32")
+    mt = dict(one_step="One", deriv="Deriv", h10="Ten", h50="Fifty", h50_extrap="Extrap")
+    arm_tag = {"noD_lam0": "NoDData", "noD_lam0.1": "NoDPinc", "D_lam0": "DData", "D_lam0.1": "DPinc"}
+    arm_lab = {"noD_lam0": "without $D$, $\\lambda = 0$", "noD_lam0.1": "without $D$, $\\lambda = 0.1$",
+               "D_lam0": "with $D$, $\\lambda = 0$", "D_lam0.1": "with $D$, $\\lambda = 0.1$"}
+    cmp_tag = {"noD: lam 0.1 vs lam 0": "NoDPincVsNoDData", "lam 0.1: D vs noD": "DPincVsNoDPinc"}
+    cmp_lab = {"noD: lam 0.1 vs lam 0": "physics loss, without $D$", "D: lam 0.1 vs lam 0": "physics loss, with $D$",
+               "lam 0.1: D vs noD": "$D$, with the physics loss"}
+    rows, crow = [], []
+    for n, res in s["results"].items():
+        nt = NTAG[int(n)]
+        for k, arm in enumerate(("noD_lam0", "noD_lam0.1", "D_lam0", "D_lam0.1")):
+            for m, t in mt.items():
+                macro(f"ScaleVal{nt}{arm_tag[arm]}{t}", sci(float(gmean(res[arm][m]))).strip("$"))
+            rows.append([f"{int(n):,}".replace(",", "\\,") if k == 0 else "", arm_lab[arm]] + [ci_cell(res[arm][m]) for m in mt])
+        for k, c in enumerate(("noD: lam 0.1 vs lam 0", "D: lam 0.1 vs lam 0", "lam 0.1: D vs noD")):     # pre-specified order
+            d = s["comparisons"][n][c]
+            if c in cmp_tag:
+                for m, t in mt.items():
+                    cmp_macros(f"ScaleCmp{nt}{cmp_tag[c]}{t}", d[m])
+            crow.append([f"{int(n):,}".replace(",", "\\,") if k == 0 else "", cmp_lab[c]] +
+                        [f"{sig2(d[m]['ratio'])} ({d[m]['wins']}/{d[m]['n']})" for m in mt])
+    hdr = ["$N$", "network", "one period", "derivative", "10 steps", "50 steps", "50 steps, extrap."]
+    write("tab_sup_scaling.tex", tabular("llccccc", hdr, rows,
+          "Output scaling $D$ with exact physics (E32 without $D$, E27 with $D$): test error of the plain network over five "
+          "training seeds (5 to 9), geometric mean [95\\,\\% confidence interval]. Derivative: error of the network's time "
+          "derivative against the true dynamics, in units of $S_f$. $\\lambda = 0.1$ is the weight selected for the network "
+          "with $D$; it was not selected again without $D$.", "tab:sup-scaling", wide=True))
+    write("tab_sup_scaling_cmp.tex", tabular("llccccc", ["$N$", "effect of"] + hdr[2:], crow,
+          "Pre-specified comparisons of Table~\\ref{tab:sup-scaling}: error without the named part divided by the error with "
+          "it (above 1: the part lowered the error), geometric mean over seeds, and the seeds in which it lowered the error.",
+          "tab:sup-scaling-cmp", wide=True))
+
+
 # ---------------------------------------------------------------- T-IV floats (main_tiv.tex)
 def tiv_table(cols, header, rows, caption, label, wide=False, scale=True):
     """IEEE floats: caption above; one column (table) or both (table*), scaled to fit when needed."""
@@ -1335,6 +1373,7 @@ def main():
     blockset_setup()
     speed_prediction()
     supplement_tables()
+    scaling_confirm()
     prior()
     architectures()
     theta()
