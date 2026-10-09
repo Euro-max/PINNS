@@ -165,13 +165,13 @@ def part_eval(a, cfg):
     ic = sio.loadmat(os.path.join(D, "ics.mat"))["IC"]
     X = sio.loadmat(os.path.join(D, "truth.mat"))["X"]
     u = sio.loadmat(os.path.join(D, "seqs.mat"))["u"]
-    n = len(ic)
+    n_ic = len(ic)
     s0r = np.repeat(network_state(ic), N_SEQ, axis=0)
     ur = u.reshape(-1, N_STEPS, 2)
     S_x = np.asarray(cfg.S_x)
 
     def score(rollout):
-        p = np.asarray(rollout(tf.constant(s0r), tf.constant(ur))).reshape(n, N_SEQ, N_STEPS, -1)[..., :4]
+        p = np.asarray(rollout(tf.constant(s0r), tf.constant(ur))).reshape(n_ic, N_SEQ, N_STEPS, -1)[..., :4]
         e2 = ((p - X[..., :4])/S_x[:4])**2
         tot = {h: float(np.mean(np.sqrt(np.mean(e2[:, :, h - 1, :], axis=(1, 2))))) for h in HZ}        # as E9 / E29
         per = {h: np.sqrt(np.mean(e2[:, :, h - 1, :], axis=(0, 1))).tolist() for h in HZ}
