@@ -1,21 +1,25 @@
 # PINC-MPC for vehicle control
 
-This repository trains a physics-informed neural network for control (PINC, after Antonelo et al., arXiv 2104.02556) and uses it as the prediction model of a model predictive controller (MPC) for a car. The network maps the time since the last control update, the current state and the input to the future state. It is compared with the same network trained on data only, with MPC using the exact model, and with a linearised MPC. Every number and figure in the paper comes from a script in this repository and is listed in `results/MANIFEST.md`.
+This repository trains physics-informed neural networks for control (PINC, after Antonelo et al., arXiv 2104.02556) as prediction models for model predictive control (MPC) of a car, and compares them with data-only networks, grey-box models and nonlinear MPC (NMPC). The proposed model is a prior-anchored PINC network, whose output is one explicit step of a simplified vehicle model plus a learned term. Every number, table and figure in the paper and its supplement comes from a script in this repository, and `results/MANIFEST.md` lists the stored artefacts.
 
 The original code (kept unchanged in `legacy/`) had defects that made its results invalid, the most serious being that the closed loop never simulated the vehicle. `docs/DEFECTS.md` lists all twenty and where each one is fixed. `docs/STATUS.md` gives the current state of the work, and `TASKS.md` is the specification the rebuild followed.
 
-## Two studies
+## Studies
 
-Study 1 uses a single-track (bicycle) vehicle model, and the physics term in the loss is that same model. The physics term cut the error of the learned dynamics 13-fold and the 50-step prediction error about 2-fold over five seeds, and the test error 14-fold with only 100 training trajectories. In closed loop, PINC-MPC tracked as well as MPC with the exact model.
+The main results use training seeds 5 to 9, which no selection step has seen; the physics weight was selected on seeds 0 to 2.
 
-Study 2 (`docs/PLAN_HIGH_FIDELITY.md`) makes the vehicle more realistic while the physics term keeps the simplified model. The vehicle is a four-wheel model with Magic Formula tyres (the 235/45R18 mid-size passenger-car tyre of the MathWorks Vehicle Dynamics Blockset), load transfer, wheel speeds and actuator lag. Variant M0 is calibrated so the simplified physics is right in gentle driving, and M1 also has its tyre stiffness and actuator lags wrong. Over five seeds, with 100 training trajectories the simplified physics lowered the one-step error 3-fold and the 10-step error 6-fold on M0. With 1000 or 20 000 trajectories it gave no reliable gain, and on M1 the physics term made the network worse unless it could learn the physics parameters. A grey-box model, where the network learns a correction to the simplified physics' own prediction, was more accurate than PINC at every data size and never lost the car in closed loop. PINC-MPC remains 4 to 6 times faster than grey-box MPC with a non-stiff version of the physics, which meets the 0.1 s real-time budget up to a horizon of 20 steps where PINC meets it up to 40.
+Study 1 uses a single-track vehicle, and the physics in the loss is that same model (exact physics). With 100 training trajectories the physics loss lowered the 50-step prediction error 63 times over five seeds, and with 20 000 trajectories 5.5 times. In closed loop the PINC controllers tracked like NMPC with the exact model.
+
+Study 2 (`docs/PLAN_HIGH_FIDELITY.md`) uses a double-track vehicle with Magic Formula tyres (the 235/45R18 mid-size passenger-car tyre of the MathWorks Vehicle Dynamics Blockset), load transfer, wheel speeds and actuator lag, while the physics in the loss is a simplified model. In variant M0 the simplified model is right in gentle driving; in M1 it also has the wrong tyre stiffness and actuator lags. The physics loss helped only with little data and roughly right physics. No anchored, grey-box or NMPC controller lost the car in closed loop, while the data-only controller trained on 100 trajectories lost 8 of 50 runs on M0 and 15 on M1. On M1 the learned controllers trained on 1000 trajectories roughly halved the lateral error of NMPC with the simplified model. At a horizon of ten the anchored controller took 11.7 ms per step, 2.4 times less than that NMPC, and stayed within the 0.1 s control period up to a horizon of 40.
+
+The third plant is the 14-degree-of-freedom passenger vehicle of the Vehicle Dynamics Blockset, which we did not write (E29, E30, `scripts/vdbs/`). On it only the grey-box model with the quasi-steady simplified model, trained on 1000 trajectories, was more accurate over 50 steps than the simplified model alone, by a factor of 2.2. The physics weight carried over from M0 raised the anchored PINC network's 50-step error 4.7 times; a weight selected on that vehicle is reported as a sensitivity analysis.
 
 ## Layout
 
 ```
 pinc/          library: config, vehicle models (single-track, high-fidelity, tyres), prior, data, model,
                loss, training, MPC, references, closed-loop simulator, metrics, job scheduler
-experiments/   e1 to e26 (listed below)
+experiments/   e1 to e31 (listed below)
 tests/         pytest suite
 configs/       default.yaml (Study 1), hf_m0.yaml and hf_m1.yaml (Study 2, generated by scripts/make_hf_configs.py)
 scripts/       scale and config generation, run queues, MATLAB export of the tyre data
@@ -24,7 +28,7 @@ docs/          status, defects, vehicle model, architecture trials, results, pla
 legacy/        the original files, imported by nothing
 ```
 
-The paper source (`LATEX/`) and the scripts that build its tables and the poster are kept outside git.
+The paper source (`LATEX/`) is kept outside git. The scripts that write its tables, figures and numbers are in `scripts/` (see Rebuilding the paper's numbers).
 
 ## Install
 
@@ -65,7 +69,7 @@ Any config entry can be changed with `--set a.b=value`. Training runs Adam and t
 
 ## Experiments
 
-Study 1:
+Study 1, original runs (the paper uses E27 for its Study 1 results and E6 for the output-scaling ablation):
 
 ```
 e7_architecture       network depth, width and regularisation, 56 trainings
@@ -101,7 +105,28 @@ e25_prior_accuracy    the full and the quasi-steady simplified physics against t
 e26_model_checks      tyre model against the MathWorks solver, double-track against single-track, wheel time constants
 ```
 
+Final protocol (physics weight selected on seeds 0 to 2, results on seeds 5 to 9) and the Blockset vehicle:
+
+```
+e27_study1_rerun      Study 1 with the anchored network: physics weight, training and evaluation
+e28_main_fresh        Study 2 main comparison of all learned models (M0, M1)
+e18_hf_closed_loop    closed loop of both studies (runs e18_s1, e18_s2_m0, e18_s2_m1)
+e4_timing             solve time against the horizon (runs e4_s1*, e4_s2*)
+e29_vdbs_transfer     Blockset vehicle: test sequences, and models trained on our plant tested on it
+e30_vdbs_retrain      models trained and tested on the Blockset vehicle, and the physics-weight sensitivity analysis
+e31_speed_prediction  per-state errors over the MPC horizon (why the learned controllers track speed worse)
+```
+
 Run any of them with `.venv/bin/python -m experiments.<name>`. Every script accepts `--run-id`, `--seed`, `--set key=value` and `--quick` (reduced sizes), and the ones that compare controllers accept `--pinc-model` and `--blackbox-model`. Scripts that train many models accept `--slots`, which runs one training per listed device at the same time (for example `gpu,cpu` or `gpu,gpu,cpu`). `docs/RESULTS.md` and `docs/STATUS.md` give the results of each experiment.
+
+## Rebuilding the paper's numbers
+
+```
+.venv/bin/python scripts/make_paper_tables.py    # Study 1, original runs (E1 to E12)
+.venv/bin/python scripts/make_paper_study2.py    # both studies under the final protocol, the Blockset vehicle, timing
+```
+
+Both read the stored results in `results/` and write the number macros (`numbers.tex`, `numbers_s2.tex`), tables and figures to `LATEX/generated/`. No training is repeated. `make_paper_study2.py` simulates our double-track plant for one check and therefore needs the tyre data in `data/tyre/`.
 
 ## How the comparison is kept fair
 
@@ -127,4 +152,8 @@ The GPU gives only a small speed-up for these networks, because they are small a
 
 ## Reproducibility
 
-Seeds fix the data, the initialisation and the collocation points, and every run records its seed, git hash and package versions. A rerun on the same machine and software reproduces a model exactly (`results/phase1_check`). A different TensorFlow version or device changes the last digit of some calculations, and L-BFGS amplifies this: retraining the main Study 1 model with TensorFlow 2.21.0 instead of 2.22.0rc0 changed its validation loss by 4.5%, which is within the 9.6% spread between training seeds (`results/tf221_check`). The published Study 1 results were produced with TensorFlow 2.22.0rc0. Numbers should be reported with the confidence intervals the scripts produce.
+Seeds fix the data, the initialisation and the collocation points, and every run records its seed, git hash and package versions. A rerun on the same machine and software reproduces a model exactly (`results/phase1_check`). A different TensorFlow version or device changes the last digit of some calculations, and L-BFGS amplifies this: retraining the main Study 1 model with TensorFlow 2.21.0 instead of 2.22.0rc0 changed its validation loss by 4.5%, which is within the 9.6% spread between training seeds (`results/tf221_check`). The original Study 1 runs (E1 to E12) were produced with TensorFlow 2.22.0rc0, and the final-protocol runs (E27 onwards) with TensorFlow 2.21.0. Numbers should be reported with the confidence intervals the scripts produce.
+
+## Licence
+
+The code is released under the MIT licence (`LICENSE`). The licence does not cover MathWorks content: the tyre parameter set and the Blockset vehicle are not included in the repository and remain under the MathWorks licence. The scripts in `scripts/` export or build them from a local installation of MATLAB R2025b with the Vehicle Dynamics Blockset.

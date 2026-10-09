@@ -1,0 +1,21 @@
+{
+  "title": "Code and results for: Prior-Anchored Physics-Informed Neural Networks for Vehicle MPC with Exact and Simplified Physics",
+  "upload_type": "software",
+  "description": "Code, configuration files and stored results for the paper. The repository trains physics-informed neural networks for control (PINC) as prediction models for model predictive control of a car, with exact physics (single-track vehicle), simplified physics (double-track vehicle with Magic Formula tyres, variants M0 and M1) and an independent 14-degree-of-freedom vehicle from the MathWorks Vehicle Dynamics Blockset, and compares them with data-only networks, grey-box models and nonlinear MPC. The scripts in scripts/ generate every table, figure and number of the paper and its supplement from the stored results. MathWorks content (tyre data, Blockset vehicle) is not included.",
+  "creators": [
+    {"name": "Elgendy, Ziad M.", "affiliation": "University of Oxford; Cairo University"},
+    {"name": "Farghaly, Zeyad E.", "affiliation": "Cairo University"},
+    {"name": "Labib, Ahmed H.", "affiliation": "Cairo University"},
+    {"name": "Abdulfattah, Zeyad M.", "affiliation": "Cairo University"},
+    {"name": "Eltantawy, Samah", "affiliation": "Cairo University"}
+  ],
+  "license": "MIT",
+  "keywords": [
+    "model predictive control",
+    "physics-informed neural networks",
+    "vehicle dynamics",
+    "prediction models",
+    "grey-box models"
+  ],
+  "access_right": "open"
+}
