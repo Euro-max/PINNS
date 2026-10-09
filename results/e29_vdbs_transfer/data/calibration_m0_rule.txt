@@ -1,0 +1,7 @@
+  lam 0.4731 d 0.010: vx 14.882 vy -0.0338 r 0.0486
+  lam 0.4731 d 0.020: vx 14.794 vy -0.0648 r 0.0964
+iter 1: lam 0.4731 -> Cf 69549, Cr 79093 N/rad per axle
+  lam 0.3183 d 0.010: vx 14.872 vy -0.0798 r 0.0467
+  lam 0.3183 d 0.020: vx 14.756 vy -0.1536 r 0.0923
+iter 2: lam 0.3183 -> Cf 46860, Cr 53206 N/rad per axle
+final lam_Kya 0.3183
