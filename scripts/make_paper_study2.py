@@ -456,39 +456,53 @@ def references_and_checks():
 
 
 def timing():
-    runs = {"e4_hf_m0_v2": {"pinc": "PINC network", "blackbox": "data-only network", "greybox": "grey-box, quasi-steady prior",
-                            "nmpc_rk4": "NMPC, full prior"},
-            "e4_hf_m0_gbfull": {"greybox": "grey-box, full prior"},
-            "e4_hf_m0_a8": {"pinc": "anchored PINC network"},
-            "e4_hf_m0": {"nmpc_true": "NMPC, true model"}}
+    """E4 on one CPU thread with the GPU hidden (Study 2: e4_s2, e4_s2_anchored, e4_s2_gbfull; N = 1000 models of seed 5)."""
+    runs = {"e4_s2": {"pinc": "PINC network", "blackbox": "data-only network", "greybox": "grey-box, quasi-steady prior",
+                      "nmpc_rk4": "NMPC, full prior", "nmpc_qs": "NMPC, quasi-steady prior", "nmpc_true": "NMPC, true model"},
+            "e4_s2_gbfull": {"greybox": "grey-box, full prior"},
+            "e4_s2_anchored": {"pinc": "anchored PINC network"}}
     tags = {"PINC network": "Pinc", "data-only network": "Data", "grey-box, quasi-steady prior": "GreyQs", "NMPC, full prior": "NmpcPrior",
-            "grey-box, full prior": "Grey", "anchored PINC network": "Anch", "NMPC, true model": "NmpcTrue"}
+            "NMPC, quasi-steady prior": "NmpcQs", "grey-box, full prior": "Grey", "anchored PINC network": "Anch", "NMPC, true model": "NmpcTrue"}
     order = ["anchored PINC network", "PINC network", "data-only network", "grey-box, quasi-steady prior", "grey-box, full prior",
-             "NMPC, full prior", "NMPC, true model"]
-    vals = {}
+             "NMPC, quasi-steady prior", "NMPC, full prior", "NMPC, true model"]
+    W = {5: "Five", 10: "Ten", 20: "Twenty", 40: "Forty"}
+    fmt = lambda x: f"{x:.1f}" if x < 1000 else f"{x/1e3:.2f}\\,s"
+    vals, p95 = {}, {}
     for run, arms in runs.items():
         s = load("e4_timing", run)
         for arm, lab in arms.items():
             vals[lab] = {int(n): v["median"]*1e3 for n, v in s["solve"][arm].items()}
+            p95[lab] = {int(n): v["p95"]*1e3 for n, v in s["solve"][arm].items()}
     rows = []
     for lab in order:
         r = [lab]
         for n in (5, 10, 20, 40):
             x = vals[lab].get(n)
-            r.append("--" if x is None else (f"{x:.1f}" if x < 1000 else f"{x/1e3:.2f}\\,s"))
+            r.append("--" if x is None else f"{fmt(x)} [{fmt(p95[lab][n])}]")
             if x is not None:
-                macro(f"Solve{tags[lab]}{NTAG.get(n, {5: 'Five', 10: 'Ten', 20: 'Twenty', 40: 'Forty'}[n]) if n in NTAG else {5: 'Five', 10: 'Ten', 20: 'Twenty', 40: 'Forty'}[n]}",
-                      f"{x:.1f}" if x < 1000 else f"{x/1e3:.2f}")
+                macro(f"Solve{tags[lab]}{W[n]}", f"{x:.1f}" if x < 1000 else f"{x/1e3:.2f}")
+                macro(f"SolvePninetyFive{tags[lab]}{W[n]}", f"{p95[lab][n]:.1f}" if p95[lab][n] < 1000 else f"{p95[lab][n]/1e3:.2f}")
         rows.append(r)
+    h = json.load(open(os.path.join(RESULTS_DIR, "e4_timing", "host_2026-10-09.json")))
+    macro("HostCpu", h["cpu"].replace("(R)", "").replace("(TM)", "")); macro("HostPowerPlan", h["power_plan"])
     write("tab_s2_timing.tex", tabular("lcccc", ["prediction model", "$N_\\mathrm{h}=5$", "10", "20", "40"], rows,
-                                       "MPC solve time per step [ms] on the realistic plant (M0) against the prediction horizon, median over a "
-                                       "3\\,s lane change; one CPU thread, after a warm-up solve. The NMPC with the true model was run up to "
-                                       "$N_\\mathrm{h} = 10$.", "tab:s2-timing"))
-    for n in (10, 40):
-        w = {5: "Five", 10: "Ten", 20: "Twenty", 40: "Forty"}[n]
-        macro(f"SolveRatioAnchOverPinc{w}", f"{vals['anchored PINC network'][n]/vals['PINC network'][n]:.1f}")
-        macro(f"SolveRatioGreyQsOverAnch{w}", f"{vals['grey-box, quasi-steady prior'][n]/vals['anchored PINC network'][n]:.1f}")
+                                       "MPC solve time per step [ms] on the double-track plant (M0) against the prediction horizon: median "
+                                       "[95th percentile] over a 3\\,s lane change, after a warm-up solve; one CPU thread with the GPU hidden "
+                                       f"({h['cpu'].replace('(R)', '').replace('(TM)', '')}, Windows power plan {h['power_plan']}, on mains). "
+                                       "Learned models trained on 1000 trajectories, seed 5. NMPC with the true model was run up to "
+                                       "$N_\\mathrm{h} = 10$.", "tab:s2-timing", wide=True))
+    for n in (5, 10, 20, 40):
+        w = W[n]
+        a = vals["anchored PINC network"][n]
+        macro(f"SolveRatioAnchOverPinc{w}", f"{a/vals['PINC network'][n]:.1f}")
+        macro(f"SolveRatioNmpcQsOverAnch{w}", f"{vals['NMPC, quasi-steady prior'][n]/a:.1f}")
+        macro(f"SolveRatioGreyQsOverAnch{w}", f"{vals['grey-box, quasi-steady prior'][n]/a:.1f}")
         macro(f"SolveRatioGreyOverGreyQs{w}", f"{vals['grey-box, full prior'][n]/vals['grey-box, quasi-steady prior'][n]:.0f}")
+        macro(f"SolveRatioNmpcPriorOverNmpcQs{w}", f"{vals['NMPC, full prior'][n]/vals['NMPC, quasi-steady prior'][n]:.0f}")
+    budget = 1e3*0.1
+    within = {lab: max([n for n in (5, 10, 20, 40) if vals[lab].get(n, np.inf) <= budget], default=0) for lab in order}
+    for lab, n in within.items():
+        macro(f"SolveMaxHorizon{tags[lab]}", str(n) if n else "none")
 
 
 # ---------------------------------------------------------------- setup facts of Study 2 (configs and vehicle model)
