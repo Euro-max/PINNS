@@ -299,21 +299,17 @@ def theta():
 
 
 # ---------------------------------------------------------------- closed loop (E18) and solve time (E4)
-CL_ARMS = [("NMPC-true", None), ("NMPC-prior", None), ("data-only", 100), ("PINC", 100), ("A8-PINC", 100), ("grey-box-qs", 100),
-           ("data-only", 1000), ("PINC", 1000), ("A8-PINC", 1000), ("grey-box-qs", 1000), ("A8-PINC-theta", 100), ("A8-PINC-theta", 1000)]
-CL_LABEL = {"NMPC-true": "NMPC, true model", "NMPC-prior": "NMPC, simplified model", "data-only": "data-only network",
-            "PINC": "PINC (MLP)", "A8-PINC": "anchored PINC", "grey-box-qs": "grey-box, quasi-steady prior",
-            "A8-PINC-theta": "anchored PINC, learned $\\theta$"}
+CL_REFS = ("speed_sin", "speed_step", "lane_change", "lane_change_short", "iso_lane_change")
+CL_LANES = ("lane_change", "lane_change_short", "iso_lane_change")
+CL_DUR = {"speed_sin": 10.0, "speed_step": 10.0, "lane_change": 6.0, "lane_change_short": 6.0, "iso_lane_change": 6.5}
+R_MAX = 0.5                                    # soft yaw-rate limit of the MPC [rad/s] (configs, mpc.r_max)
 
 
-CL_REFS = ("speed_sin", "speed_step", "lane_change", "lane_change_short", "double_lane_change")
-CL_LANES = ("lane_change", "lane_change_short", "double_lane_change")
-
-
-def cl_runs(v):
+def cl_runs(run):
+    """{(manoeuvre, arm, N): [runs]} of an E18 run directory (Study 2: e18_s2_<v>, seeds 5-9)."""
     import glob
     out = {}
-    for f in glob.glob(os.path.join(RESULTS_DIR, "e18_hf_closed_loop", f"e18_{v}", "runs", "*.json")):
+    for f in glob.glob(os.path.join(RESULTS_DIR, "e18_hf_closed_loop", run, "runs", "*.json")):
         with open(f) as fh:
             r = json.load(fh)
         out.setdefault((r["ref"], r["arm"], r["N"]), []).append(r)
@@ -330,11 +326,11 @@ def per_seed(runs, key):
 
 def cl_metric(R, arm, n, metric):
     """Per-seed values of an aggregate closed-loop metric: lane = mean lateral RMSE over the three lane changes,
-    sin = speed RMSE on the sinusoid, dlc = peak lateral error in the double lane change."""
+    sin = speed RMSE on the sinusoid, iso = peak lateral error on the ISO 3888-2 path."""
     if metric == "lane":
         parts = [per_seed(R[(ref, arm, n)], "rmse_Y") for ref in CL_LANES]
         return {k: float(np.mean([p_[k] for p_ in parts])) for k in parts[0]}
-    ref, key = {"sin": ("speed_sin", "rmse_vx"), "dlc": ("double_lane_change", "max_Y")}[metric]
+    ref, key = {"sin": ("speed_sin", "rmse_vx"), "iso": ("iso_lane_change", "max_Y")}[metric]
     return per_seed(R[(ref, arm, n)], key)
 
 
@@ -347,47 +343,53 @@ def cl_noise_seeds(R, arm, n):
 
 
 def cl_compare(R, x, y, metric):
-    """x, y: (arm, N).  Learned vs learned: paired by training seed (mean over its two noise seeds);
-    learned vs NMPC: the NMPC value for a training seed is its mean over the same two noise seeds."""
+    """x, y: (arm, N).  Learned vs learned: paired by training seed (mean over its two noise seeds); learned vs
+    NMPC: the NMPC value for a training seed is its mean over the same two noise seeds (Section 5.3)."""
     vx_ = cl_metric(R, *x, metric)
     vy_ = cl_metric(R, *y, metric)
-    if y[0].startswith("NMPC"):
+    if y[0].startswith("NMPC") and not x[0].startswith("NMPC"):
         seeds = cl_noise_seeds(R, *x)
         vy_ = {m: float(np.mean([vy_[k] for k in ks])) for m, ks in seeds.items()}
     common = sorted(set(vx_) & set(vy_))
     return compare([vx_[m] for m in common], [vy_[m] for m in common])
 
 
-CL_ROWS = [("NMPC-true", 0), ("NMPC-prior", 0), ("data-only", 100), ("PINC", 100), ("A8-data-only", 100), ("A8-PINC", 100),
-           ("grey-box-qs", 100), ("distilled", 100), ("data-only", 1000), ("PINC", 1000), ("A8-data-only", 1000), ("A8-PINC", 1000),
-           ("grey-box-qs", 1000), ("distilled", 1000), ("A8-PINC-theta", 100), ("A8-PINC-theta", 1000)]
+CL_ROWS = [("NMPC-true", 0), ("NMPC-prior", 0), ("NMPC-qs", 0),
+           ("data-only", 100), ("PINC", 100), ("anchored data-only", 100), ("anchored PINC", 100), ("grey-box-qs", 100), ("grey-box", 100),
+           ("data-only", 1000), ("PINC", 1000), ("PINC-ablation", 1000), ("anchored data-only", 1000), ("anchored PINC", 1000),
+           ("grey-box-qs", 1000), ("grey-box", 1000)]
 CL_LABEL = {"NMPC-true": "NMPC, true model", "NMPC-prior": "NMPC, full prior", "NMPC-qs": "NMPC, quasi-steady prior",
-            "data-only": "data-only network", "PINC": "PINC network", "A8-data-only": "anchored data-only network",
-            "A8-PINC": "anchored PINC network", "grey-box-qs": "grey-box, quasi-steady prior", "distilled": "distilled network",
-            "A8-PINC-theta": "anchored PINC network, learned $\\theta$"}
-CL_TAG = {"NMPC-true": "NmpcTrue", "NMPC-prior": "NmpcPrior", "data-only": "Data", "PINC": "Pinc", "A8-data-only": "AnchData",
-          "A8-PINC": "Anch", "grey-box-qs": "GreyQs", "distilled": "Distil", "A8-PINC-theta": "AnchTheta"}
-CL_PAIRS = [("A8-PINC", "PINC"), ("A8-PINC", "data-only"), ("A8-PINC", "A8-data-only"), ("A8-PINC", "grey-box-qs"),
-            ("A8-PINC", "NMPC-prior"), ("PINC", "data-only"), ("grey-box-qs", "NMPC-prior"), ("data-only", "NMPC-prior"),
-            ("PINC", "NMPC-prior"), ("A8-PINC-theta", "A8-PINC"), ("distilled", "A8-PINC")]
+            "data-only": "data-only network", "PINC": "PINC network", "PINC-ablation": "PINC network, $\\lambda = 10^{-3}$",
+            "anchored data-only": "anchored data-only network", "anchored PINC": "anchored PINC network",
+            "grey-box-qs": "grey-box, quasi-steady prior", "grey-box": "grey-box, full prior"}
+CL_TAG = {"NMPC-true": "NmpcTrue", "NMPC-prior": "NmpcPrior", "NMPC-qs": "NmpcQs", "data-only": "Data", "PINC": "Pinc",
+          "PINC-ablation": "PincAbl", "anchored data-only": "AnchData", "anchored PINC": "Anch", "grey-box-qs": "GreyQs",
+          "grey-box": "Grey"}
+CL_PAIRS = [(a, "NMPC-qs") for a in ("data-only", "PINC", "PINC-ablation", "anchored data-only", "anchored PINC", "grey-box-qs", "grey-box")] + \
+           [("anchored PINC", "anchored data-only"), ("anchored PINC", "PINC"), ("anchored PINC", "data-only"), ("anchored PINC", "grey-box-qs"),
+            ("PINC", "data-only"), ("grey-box-qs", "data-only"), ("anchored data-only", "data-only")]
 
 
 def closed_loop():
+    """Study 2 closed loop (E18 with the E28 models, seeds 5-9).  Reference: NMPC with the quasi-steady prior."""
     rows = []
-    R = {v: cl_runs(v) for v in VARIANTS}
+    R = {v: cl_runs(f"e18_s2_{v}") for v in VARIANTS}
     for arm, n in CL_ROWS:
         r = [CL_LABEL[arm], "--" if n == 0 else f"{n:,}".replace(",", "\\,")]
         for v in VARIANTS:
             if (CL_LANES[0], arm, n) not in R[v]:
-                r += ["--"]*4
+                r += ["--"]*5
                 continue
             runs = [x for ref in CL_REFS for x in R[v][(ref, arm, n)]]
             lost = sum(x["max_Y"] > 1.0 for x in runs)
-            med = {m: geo_ci(list(cl_metric(R[v], arm, n, m).values()))["mean"] for m in ("lane", "sin", "dlc")}
-            r += [f"{lost}/{len(runs)}", f"{med['lane']:.3f}", f"{med['sin']:.3f}", f"{med['dlc']:.2f}"]
+            yaw_t = float(np.mean([x["viol_time_r"]/CL_DUR[x["ref"]] for x in runs]))
+            yaw_r = float(np.mean([x["viol_time_r"] > 0 for x in runs]))
+            med = {m: geo_ci(list(cl_metric(R[v], arm, n, m).values()))["mean"] for m in ("lane", "sin", "iso")}
+            r += [f"{lost}/{len(runs)}", f"{100*yaw_t:.0f}", f"{med['lane']:.3f}", f"{med['sin']:.3f}", f"{med['iso']:.2f}"]
             tag = f"Cl{VTAG[v]}{CL_TAG[arm]}" + (NTAG[n] if n else "")
             macro(tag + "Lost", str(lost)); macro(tag + "Runs", str(len(runs)))
-            macro(tag + "Lane", f"{med['lane']:.3f}"); macro(tag + "Sin", f"{med['sin']:.3f}"); macro(tag + "Dlc", f"{med['dlc']:.2f}")
+            macro(tag + "YawTime", f"{100*yaw_t:.0f}"); macro(tag + "YawRuns", f"{100*yaw_r:.0f}")
+            macro(tag + "Lane", f"{med['lane']:.3f}"); macro(tag + "Sin", f"{med['sin']:.3f}"); macro(tag + "Iso", f"{med['iso']:.2f}")
         rows.append(r)
     for v in VARIANTS:
         for x, y in CL_PAIRS:
@@ -395,16 +397,20 @@ def closed_loop():
                 xn, yn = (x, n), (y, 0 if y.startswith("NMPC") else n)
                 if (CL_LANES[0], *xn) not in R[v] or (CL_LANES[0], *yn) not in R[v]:
                     continue
-                for m, t in (("lane", "Lane"), ("sin", "Sin"), ("dlc", "Dlc")):
+                for m, t in (("lane", "Lane"), ("sin", "Sin"), ("iso", "Iso")):
                     cmp_macros(f"ClCmp{VTAG[v]}{NTAG[n]}{CL_TAG[x]}Vs{CL_TAG[y]}{t}", cl_compare(R[v], xn, yn, m))
-    write("tab_s2_closed.tex", tabular("llcccc|cccc", ["controller", "$N$", "lost", "lane $Y$", "sin. $v_x$", "DLC peak",
-                                                        "lost", "lane $Y$", "sin. $v_x$", "DLC peak"], rows,
-                                       "Closed loop on the double-track plant, M0 (left) and M1 (right). Lost: runs whose lateral error "
-                                       "exceeded 1\\,m, over all five manoeuvres. Lane $Y$: lateral RMSE [m], mean over the three lane changes; "
-                                       "sin.\\ $v_x$: speed RMSE [m/s] on the speed sinusoid; DLC peak: peak lateral error [m] in the double lane "
-                                       "change. Learned controllers: ten runs per manoeuvre (five training seeds $\\times$ two noise seeds); each "
-                                       "entry is the geometric mean over training seeds of the mean of the two runs of a seed. NMPC: geometric "
-                                       "mean over noise seeds (ten; two for the true model).", "tab:s2-closed", wide=True))
+        for m, t in (("lane", "Lane"), ("sin", "Sin"), ("iso", "Iso")):          # NMPC full prior vs quasi-steady
+            cmp_macros(f"ClCmp{VTAG[v]}NmpcQsVsNmpcPrior{t}", cl_compare(R[v], ("NMPC-qs", 0), ("NMPC-prior", 0), m))
+    write("tab_s2_closed.tex", tabular("llccccc|ccccc", ["controller", "$N$", "lost", "yaw", "lane $Y$", "sin. $v_x$", "ISO peak",
+                                                          "lost", "yaw", "lane $Y$", "sin. $v_x$", "ISO peak"], rows,
+                                       "Closed loop on the double-track plant, M0 (left) and M1 (right), with the models of the main "
+                                       "comparison (seeds 5 to 9). Lost: runs whose lateral error exceeded 1\\,m, over all five manoeuvres. "
+                                       "Yaw: share of time [\\%] above the soft yaw-rate limit of 0.5\\,rad/s. Lane $Y$: lateral RMSE [m], "
+                                       "mean over the three lane changes; sin.\\ $v_x$: speed RMSE [m/s] on the speed sinusoid; ISO peak: peak "
+                                       "lateral error [m] on the smooth path through the ISO 3888-2 cone layout. Learned controllers: ten runs "
+                                       "per manoeuvre (five training seeds $\\times$ two noise seeds); each entry is the geometric mean over "
+                                       "training seeds of the mean of the two runs of a seed. NMPC: geometric mean over noise seeds (ten; "
+                                       "two for the true model).", "tab:s2-closed", wide=True))
 
 
 def references_and_checks():
