@@ -14,7 +14,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from make_paper_tables import OUT, sci, sig2, tabular, write  # noqa: E402
-from pinc.config import RESULTS_DIR  # noqa: E402
+from pinc.config import RESULTS_DIR, ROOT  # noqa: E402
 from pinc.metrics import bootstrap_ci  # noqa: E402
 
 macros = {}
@@ -305,6 +305,15 @@ def blockset():
     cell = lambda c: f"{sig2(c['ratio'])} ({c['wins']}/5)"
     macro("VbPriorOneStep", f"{chk['prior_qs_one_step_body']:.4f}")
     macro("VbPriorFifty", f"{e30['prior']['50']:.3f}"); macro("VbPriorTen", f"{e30['prior']['10']:.3f}")
+    macro("VbPriorOne", f"{e30['prior']['1']:.4f}")
+    # the same metric (E9: mean over test starting states of the body-state RMS) for the prior on M0 and M1 (E31)
+    for v in VARIANTS:
+        pq = load("e31_speed_prediction", f"e31_priors_{v}")["priors"]["quasi-steady prior"]
+        for h, t in (("1", "One"), ("10", "Ten"), ("50", "Fifty")):
+            macro(f"PriorTest{VTAG[v]}{t}", f"{pq[h]:.4f}")
+    m0 = load("e31_speed_prediction", "e31_priors_m0")["priors"]["quasi-steady prior"]
+    macro("VbPriorOverMzeroOne", f"{e30['prior']['1']/m0['1']:.1f}")
+    macro("VbPriorOverMzeroTen", f"{e30['prior']['10']/m0['10']:.1f}")
     rows = [["simplified physics alone", "--", f"{e30['prior']['50']:.3f}", "--", "--", f"{e30['prior']['50']:.3f}"]]
     for n in ("100", "1000"):
         for arm in VB_ARMS:
@@ -351,6 +360,29 @@ def blockset():
     macro("VbResistConst", f"{rs['blockset']['c0']:.0f}"); macro("VbResistQuad", f"{rs['blockset']['c2']:.3f}")
     macro("VbResistConstOurs", f"{rs['our_plant']['c0']:.0f}"); macro("VbResistQuadOurs", f"{rs['our_plant']['c2']:.3f}")
     macro("VbResistDiff", f"{rs['our_plant']['c0'] - rs['blockset']['c0']:.0f}")
+
+
+def blockset_setup():
+    """Setup facts of the Blockset vehicle: the M0-rule calibration (results/e29_vdbs_transfer/data/calibration_m0_rule.txt,
+    output of scripts/vdbs/calibrate14.m) and a 0.03 rad steer step at 15 m/s against our plant (step_steer_test.mat)."""
+    import re
+    import scipy.io as sio
+    from pinc import plant_hf
+    from pinc.config import load_config
+    d = os.path.join(RESULTS_DIR, "e29_vdbs_transfer", "data")
+    txt = open(os.path.join(d, "calibration_m0_rule.txt")).read()
+    lam = float(re.findall(r"final lam_Kya ([\d.]+)", txt)[0])
+    cf, cr = [float(x) for x in re.findall(r"Cf (\d+), Cr (\d+)", txt)[-1]]
+    macro("VbLamKya", f"{lam:.3f}"); macro("VbStiffFront", f"{cf/1e3:.1f}"); macro("VbStiffRear", f"{cr/1e3:.1f}")
+    S = sio.loadmat(os.path.join(d, "step_steer_test.mat"), squeeze_me=True)
+    cfg = load_config(os.path.join(ROOT, "configs", "hf_m0.yaml"))
+    p = plant_hf.make_params(cfg.params, "M0")
+    x = plant_hf.free_rolling_state(15.0, p, F=200.0)
+    for k in range(40):
+        x = plant_hf.simulate(x, np.array([200.0, 0.0 if 0.1*k < 2 - 1e-9 else 0.03]), 0.1, plant_hf.DT_PLANT, p)
+    r_ours, r_vb = float(x[2]), float(S["r"][-1])
+    macro("VbYawGainLower", f"{100*(1 - r_vb/r_ours):.0f}")
+    macro("VbStepSteer", "0.03"); macro("VbStepSpeed", "15")
 
 
 # ---------------------------------------------------------------- T-IV floats (main_tiv.tex)
@@ -416,10 +448,11 @@ def tiv_floats(arms):
     write("tiv_tab_closed.tex", tiv_table("llcccc|cccc", ["controller", "$N$", "lost", "lane $Y$", "ISO $Y$", "$v_x$",
                                                             "lost", "lane $Y$", "ISO $Y$", "$v_x$"], rows,
           "Closed loop on the double-track vehicle, M0 (left) and M1 (right). Lost: runs with a lateral error above "
-          "1\\,m, of 50 (ten for the true model). Lane $Y$: lateral RMSE [m], mean of the three lane changes; ISO $Y$: peak "
+          "1\\,m, of 50 (ten for the true model). Lane $Y$: lateral RMSE [m], mean over the two lane changes and the ISO path; ISO $Y$: peak "
           "lateral error [m] on the ISO 3888-2 path; $v_x$: speed RMSE [m/s] on the speed sinusoid. Learned controllers: "
           "geometric mean over five training seeds, each the mean of two noise seeds; NMPC: over ten noise seeds (two for "
-          "the true model).", "tab:closed", wide=True))
+          "the true model). --: not run. On M1 the selected weight at $N = 1000$ is 0, so the PINC network is the data-only "
+          "network and the PINC row is replaced by the ablation with $\\lambda = 10^{-3}$.", "tab:closed", wide=True))
     # ---- Table IV: Blockset vehicle (E30), with the sensitivity rows when available
     e30 = load("e30_vdbs_retrain", "e30_eval")
     cell = lambda c: f"{sig2(c['ratio'])} ({c['wins']}/5)"
@@ -1032,6 +1065,18 @@ def lambda_criterion():
     return pa
 
 
+def lambda_edges(g):
+    """Selections at the top of a grid: how far the selected value is from its neighbours (validation 50-step, mean of
+    three seeds).  Study 1 anchored at N = 20 000 (E27) and M1 anchored at N = 100 (E23)."""
+    l = load("e27_study1_rerun", "e27_lambda")["results"]["anchored_20000"]
+    top = [float(np.mean(l[k])) for k in ("0.1", "1", "10")]
+    macro("SoneLamEdgeSpread", f"{100*(max(top)/min(top) - 1):.0f}")
+    m1 = g[("anchored", "m1")][100]
+    v = sorted((float(np.mean(x)), lam) for lam, x in m1.items())
+    macro("LamEdgeMoneGap", f"{100*(v[1][0]/v[0][0] - 1):.0f}")
+    macro("LamEdgeMoneSecond", f"{v[1][1]:g}" if v[1][1] >= 0.1 else f"10^{{{int(round(np.log10(v[1][1])))}}}")
+
+
 def fig_lambda_onestep(g, pa):
     """One-step test error against lambda (seeds 0-2) with the prior's one-step error (dashed)."""
     plt = _plt()
@@ -1213,6 +1258,7 @@ def main():
     table_main(arms)
     study1_rerun()
     blockset()
+    blockset_setup()
     prior()
     architectures()
     theta()
@@ -1226,6 +1272,7 @@ def main():
     fig_lambda(g)
     pa = lambda_criterion()
     fig_lambda_onestep(g, pa)
+    lambda_edges(g)
     fig_data(arms)
     fig_speed(arms)
     fig_dlc()
